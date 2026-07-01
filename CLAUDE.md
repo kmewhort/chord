@@ -51,7 +51,7 @@ pytest validate/ -rxX         # opt-in real-data validation (Appendix C); needs 
 | §9.3 | `chord/monitor.py` | `N_eff`, `Gini`, `ConcentrationController`, endo/exo shift |
 | §3/App D | `chord/ports/` | `base` protocols + `adapters` (crude defaults only) |
 | App C.3 | `chord/eval/mnar_harness.py` | Semi-synthetic MNAR experiment |
-| App C.4 | `chord/simulator/` | `population`, `content` (authors), `response`, `engine` |
+| App C.4 | `chord/simulator/` | `population`, `content`, `response` (non-circular DGP), `rankers` (CHORD vs engagement/oracle/…), `metrics` (welfare), `engine` (ranker-driven loop + sybil-ring adversary). See `SIMULATOR.md`. |
 
 `chord/types.py` holds the shared dataclasses (`Post`, `Reaction`, `Exposure`,
 `ReactionKind`). `chord/config.py` holds `ChordConfig` (system/estimator params)
@@ -132,7 +132,13 @@ tests and are documented in the whitepaper's own prose):
   `test_loop_integration.py` (keystone + M dial + budget end-to-end),
   `test_simulator.py` (closed-loop stability, firehose dilution, exploration
   sustained), `test_mnar.py` (IPW recovers ranking under MNAR; identifiability
-  fails as the anchor → 0), `test_adversarial.py` (Sybil/brigade).
+  fails as the anchor → 0), `test_adversarial.py` (Sybil/brigade). The simulator's
+  **counterfactual** suite proves CHORD beats the engagement baseline end-to-end:
+  `test_simulator_welfare.py` (more true value / less polarization),
+  `test_simulator_performativity.py` (incentive doesn't breed extremists),
+  `test_simulator_adversary.py` (ring contained), `test_simulator_problems.py`
+  (budget suppresses firehose). See `chord/simulator/SIMULATOR.md` for the
+  problem→test map.
 - MNAR/simulator assertions are averaged over seeds to test the *systematic*
   effect, not a single noisy draw — keep that if you touch them.
 

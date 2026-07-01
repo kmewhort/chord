@@ -765,6 +765,25 @@ concentration bounded; and whether exploration at rate $\epsilon$ sustains the i
 anchor over time. This is where the performative-prediction and two-timescale results become
 empirical rather than assumed.
 
+The reference implementation ships this simulator (`chord/simulator/`, see its `SIMULATOR.md`)
+built to three commitments that make it a real test rather than a flattering one:
+**counterfactual** — every ranker (CHORD, engagement, chronological, random, and a cheating
+oracle) runs its own closed loop on the same seeded world, so results read "what if we had
+ranked this way"; **non-circular** — the data-generating process is deliberately *not* the
+model the estimator fits (a hidden opinion axis beyond $d$; a toxicity channel that drives
+engagement while quality — genuine value — barely moves reactions, so engagement $\neq$ value
+and bridging-bait can exist); and **ground-truthed** — because the world is synthetic it scores
+what no live system can, the true bridged value delivered and the polarization exposed. The
+headline counterfactuals (seed-averaged): against an engagement ranker on the same world, CHORD
+delivers more true (quality $\times$ bridged) value and less toxicity/divisiveness at a modest
+satisfaction cost, and recovers the true opinion geometry better (its exploration anchor keeps
+the estimate identifiable in-loop); with strategic author-agents, engagement entrenches partisan
+extremity over time while CHORD does not; a sybil ring that boosts a target's posts *gains* reach
+under engagement but *loses* it under CHORD as the ring grows (B_LCB's min-over-clusters reads the
+ring as an outlier group); and the conserved budget (§8) dilutes a firehose author's per-post
+reach. One honest in-loop finding: the §5 out-diversity weight, which fixes the rater-influence
+ring, does not by itself stop this *content-boost* ring — the keystone does.
+
 ### C.5 Results of the reference validation suite
 
 The reference implementation ships an opt-in suite (`validate/`) that runs the static-component
