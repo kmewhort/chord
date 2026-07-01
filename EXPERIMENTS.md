@@ -139,6 +139,36 @@ standalone reach-killer. On CN there is no exposure log, so the throttle-to-ε c
 sim-only. (Sharp caveat, per the meta-point: the throttle *spends* ε — the puppets must wait
 for the commons pool to serve them the target.)
 
+## Results — Tier 2 (run)
+
+All six ran as focused experiments; every one is directionally positive. None landed into
+the core yet (they need DGP/monitor plumbing), but each is now a demonstrated mechanism.
+
+- **E12 — CUSUM controller: ✅.** A concentration attack lifts Gini(λ) to a sustained ~0.24
+  (healthy ~0.08); *neither* trips the level ceiling (0.6) — the §13#12 dormancy, confirmed.
+  A CUSUM on a rolling baseline (ceiling = h·σ, data-derived) fires one window after onset,
+  and stays silent on healthy noise. (Nuance: a system that *starts* concentrated shows no
+  drift — change-point detection working as designed.)
+- **E4 — residual whiteness (Moran's I): ✅ strong.** With the true opinion rank > fitted d,
+  a post that divides along the *hidden* axis has Moran's I +0.63 on its rank-1 residuals
+  (permutation p<0.001 → flagged); a genuinely bridging post is +0.00 (p=0.22 → white). A
+  clean per-post crowning gate and d-too-low diagnostic.
+- **E1 — measured performativity: ✅.** An empirical Lipschitz of the performative map
+  (reaction-shift per feed-change) is measurable from existing metrics and scales with the
+  performativity rate (0.067→0.093), tracking steady-state instability — so performativity
+  can be *measured*, not assumed, and fed to the controller.
+- **E3 — amplification collar: ✅.** For a post that bridges small but divides large (rare
+  10% opposition), B_LCB is monotone-decreasing in tested audience (−0.08→−0.64), so capping
+  reach at κ·n_tested forces re-certification per rung and stops a lucky small-sample post
+  from over-amplifying before the divide surfaces.
+- **E6 — off-policy recycling verification: ✅.** Gating the λ-boost on off-policy
+  corroboration (does the user realize value on ε items?) zeros a recycling farmer's boost
+  (0.70→0.04) while keeping a genuine under-served user's (0.48).
+- **E11 — saturation-trajectory depth: ✅.** Bait's reception-variance decays ~5× faster
+  than slow-burn depth (rate 0.68 vs 0.14), so trajectory shape is a usable depth prior
+  orthogonal to the vouch channel — a third channel toward "forge requires compromising
+  independent modalities."
+
 ## Suggested order
 1. **E9** (hierarchical prior) — highest leverage, closes the one gap where §8 does §4's
    job; deterministic; CN + sim today.
