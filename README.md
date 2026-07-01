@@ -1,14 +1,32 @@
 # CHORD
 
-**Cross-cluster Harmonized Optimization of Reception and Dissonance** — a
-bridging, attention-economy feed-ranking algorithm for federated social networks.
+CHORD (Cross-cluster Harmonized Optimization of Reception and Dissonance) is an
+experimental, first-draft algorithm that aims to solve some of the major problems
+with today's *anti*-social networks.
 
-This is a reference Python implementation of the CHORD whitepaper
-([`strength-ranked-attention-whitepaper-2.md`](strength-ranked-attention-whitepaper-2.md)).
-Where engagement ranking rewards divisive, high-variance "split-decision" content,
-CHORD ranks content by a **strength score** that rewards broad support net of
-divisiveness — and adds attention-economy mechanisms (quality-weighted raters, a
-conserved author visibility budget, and a commons-funded exploration pool) on top.
+The big platforms use dark-pattern mathematics to maximize engagement — and
+engagement is a trap: the content that provokes the most reactions is the content
+that divides us most. Outrage and tribalism are high-variance bets — half the room
+loves them, half hates them — and that very split is what the reaction-counter
+rewards. However neutral the feed looks, its math quietly pays out for division.
+
+CHORD takes the opposite approach. Inspired by the
+[Ethelo algorithm](https://github.com/Ethelo/ethelo-os-engine), instead of
+rewarding whatever provokes the loudest reaction, it optimizes for broad support
+*across* a community's divides — content earns reach by bridging disagreement
+rather than inflaming it. The goal is an algorithm tuned for positive social
+interaction, not attention at any cost.
+
+---
+
+This repository is a reference Python implementation of the CHORD whitepaper
+([`strength-ranked-attention-whitepaper-2.md`](strength-ranked-attention-whitepaper-2.md)) —
+the full valuation-and-allocation layer, plus a closed-loop simulator and an
+evaluation harness. On top of the bridging core it layers three attention-economy
+mechanisms: quality-weighted raters (a discriminating reaction counts more than a
+reflexive one), a conserved author visibility budget (posting more dilutes rather
+than multiplies reach), and a commons-funded exploration pool (unproven newcomers
+get a fair audition).
 
 The one-line architecture (whitepaper Appendix B):
 
