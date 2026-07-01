@@ -12,6 +12,17 @@ htmlcov/
 venv/
 *.so
 
+# Validation data: the files the adapters actually read are committed under
+# validate/data via Git LFS. Everything else stays local — the multi-GB Community
+# Notes raw shards, the downloaded archives (re-derivable), and redundant dataset
+# extras (MovieLens CV splits, Coat side features). See validate/README.md.
+validate/data/**/raw/
+validate/data/**/_extract/
+validate/data/**/*.zip
+validate/data/coat/coat/user_item_features/
+validate/data/movielens/ml-100k/*
+!validate/data/movielens/ml-100k/u.data
+
 # LaTeX build artifacts from whitepaper/compile.sh (the .pdf itself is committed)
 whitepaper/*.aux
 whitepaper/*.log

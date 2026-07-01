@@ -17,6 +17,10 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=7.0"]
+# Extra deps for the opt-in retroactive-validation suite (Appendix C) under
+# validate/. Keeps the pure numpy/scipy core untouched; pandas/pyarrow are only
+# needed to read the public datasets (CSV / Parquet), requests to fetch them.
+validate = ["pytest>=7.0", "pandas>=1.5", "pyarrow>=10", "requests>=2.28"]
 
 [tool.setuptools.packages.find]
 where = ["."]

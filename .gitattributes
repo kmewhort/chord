@@ -1,0 +1,5 @@
+# All committed validation data goes through Git LFS, regardless of extension
+# (Coat .ascii, Polis .csv, MovieLens u.data, SNAP .gz, Community Notes .parquet).
+# Git-ignored paths (validate/data/**/raw, archives, redundant extras) are never
+# staged, so this only ever applies to the small committed slices.
+validate/data/** filter=lfs diff=lfs merge=lfs -text
