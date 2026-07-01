@@ -640,13 +640,17 @@ Honest residuals, several of which no fix fully removes:
     *every* one of the target's posts over time — and gates it by the loyal bloc's **opinion-
     cluster spread**, so a dispersed ring is penalized while a coherent single-cluster fanbase is
     not; in the simulator this drives the ring's amplification from $2.8\times$ a legitimate
-    author's reach back below $1\times$, even for a high-quality target. The **residual** is the
-    principled hardening left unbuilt: an *exploration-anchor cap* (bound each cluster's organic
-    reception by its unconfounded ε-exploration reception — K-independent, but wants more
-    randomized traffic than the floor provides) and *spectral spike-removal* (deflate the rank-1
-    boost block from the residual before re-fitting the intercepts — detection that *strengthens*
-    with ring size, $\sigma_{\text{spike}}\propto\sqrt K$). Timing/provenance and costly identity
-    remain the ultimate backstops.
+    author's reach back below $1\times$, even for a high-quality target. A second, complementary
+    defense is also built — an *exploration-anchor cap* that bounds each cluster's reception by
+    the unconfounded ε-exploration reception (§6.2); it *de-confounds* organic reception (raising
+    delivered true value) and removes the ring's common-mode lift $K$-independently, but cannot
+    *alone* push a ring below parity (a near-origin target's true reception equals genuine broad
+    content's) and needs more randomized traffic than the floor provides — so it is paired with
+    the loyalty penalty rather than used alone. The **residual** left unbuilt is *spectral
+    spike-removal* (deflate the rank-1 boost block from the residual before re-fitting the
+    intercepts — detection that *strengthens* with ring size, $\sigma_{\text{spike}}\propto
+    \sqrt K$); RPCA is the wrong tool (the rank-1 boost lands in the low-rank part). Timing/
+    provenance and costly identity remain the ultimate backstops.
 
 *Directions considered and declined.* Several defensive add-ons were evaluated and left out
 deliberately, on the principle that each addition should strengthen an existing mechanism or

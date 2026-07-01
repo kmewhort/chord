@@ -73,13 +73,18 @@ weaknesses; each was then chased down (tests in `tests/test_simulator_*`):
    a high-quality target the depth defense can't catch), negligible collateral.
    (`test_simulator_collusion.py`)
 
-   *Principled complements (validated in the literature, not yet built):* the
-   **exploration-anchor cap** — cap each cluster's organic reception at the upper
-   confidence bound of its unconfounded ε-exploration reception (K-independent,
-   provably non-collateral, but needs more exploration traffic than this sim floors);
-   and **spectral spike-removal** — deflate the rank-1 boost block from the MF residual
-   before re-fitting the intercepts (detection *strengthens* with K, σ_spike ∝ √K).
-   RPCA is the wrong tool (the rank-1 boost lands in the low-rank part).
+   *Principled complement (built): the **exploration-anchor cap*** —
+   `config.exploration_anchor_cap` caps each cluster's reception at the upper
+   confidence bound of the author's reception among unconfounded ε-exploration
+   exposures. It **de-confounds** organic reception (raising delivered true value
+   ~16% with no ring) and, K-independently, removes the ring's common-mode lift; but
+   it cannot *alone* push a ring below parity (a near-origin target's true reception
+   equals genuine broad content's — reception can't see quality) and needs more
+   exploration traffic than the small default ε floor to bind. Paired with the
+   loyalty penalty it contains the ring even at higher ε (`test_simulator_anchor.py`).
+   *Still unbuilt:* **spectral spike-removal** — deflate the rank-1 boost block from
+   the MF residual before re-fitting the intercepts (detection *strengthens* with K,
+   σ_spike ∝ √K). RPCA is the wrong tool (the rank-1 boost lands in the low-rank part).
 3. **Bridging↔satisfaction tradeoff — characterized** (see `test_simulator_frontier.py`).
 
 ## Layout
