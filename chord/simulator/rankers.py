@@ -44,6 +44,10 @@ class Ranker:
     def estimated_opinions(self) -> Optional[Dict[Id, np.ndarray]]:
         return None
 
+    def post_score(self, post_id: Id) -> float:
+        """The ranker's own score for a post (for adversary diagnostics)."""
+        return float("nan")
+
     def diagnostics(self) -> Dict[str, float]:
         return {}
 
@@ -74,6 +78,10 @@ class ChordRanker(Ranker):
     def estimated_opinions(self):
         st = self.chord.state
         return dict(st.result.x_user) if st is not None else None
+
+    def post_score(self, post_id):
+        st = self.chord.state
+        return float(st.bridging.b_lcb.get(post_id, float("nan"))) if st is not None else float("nan")
 
     def diagnostics(self):
         st = self.chord.state

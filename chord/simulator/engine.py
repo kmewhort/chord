@@ -52,7 +52,12 @@ class WindowMetrics:
     content_divisiveness: float = float("nan")
     content_true_value: float = float("nan")
     partisan_extremity: float = float("nan")   # mean |style·axis0| of partisan authors
+    ring_target_blcb: float = float("nan")      # bridged support the sybil ring bought
     reach_by_label: Dict[str, float] = field(default_factory=dict)
+
+    @property
+    def ring_target_reach(self) -> float:
+        return self.reach_by_label.get("ring_target", float("nan"))
 
     # back-compat alias
     @property
@@ -103,6 +108,8 @@ class Simulator:
         adaptive_authors: bool = True,
         include_toxic_and_bait: bool = True,
         performativity: float = 0.0,
+        sybil_ring_size: int = 0,
+        ring_target_quality: float = 0.4,
     ):
         # small per-author budget so the conserved-budget mechanism (§8) binds.
         self.config = config or ChordConfig(
@@ -117,6 +124,8 @@ class Simulator:
         self.adaptive_authors = adaptive_authors
         self.include_toxic_and_bait = include_toxic_and_bait
         self.performativity = performativity
+        self.sybil_ring_size = sybil_ring_size
+        self.ring_target_quality = ring_target_quality
 
     # ---------------------------------------------------------------- world
     def _fresh_world(self):
@@ -128,8 +137,20 @@ class Simulator:
         if not self.adaptive_authors:
             for a in authors:
                 a.adaptivity = 0.0
+        ring = None
+        if self.sybil_ring_size > 0:
+            # A mediocre-quality target author near the origin (so it *could* look
+            # bridging if its reception were inflated), boosted by a ring of
+            # single-target sybil raters — the exact §5 attack, now in the loop.
+            target = AuthorAgent(id=2000, style=np.zeros(self.d_true), spread=0.2,
+                                 adaptivity=0.0, base_volume=1, max_volume=2,
+                                 toxicity=0.1, quality=self.ring_target_quality,
+                                 label="ring_target")
+            authors = authors + [target]
+            ring = {"target_id": 2000,
+                    "sybil_ids": [90000 + i for i in range(self.sybil_ring_size)]}
         reset_truth()
-        return pop, authors
+        return pop, authors, ring
 
     def make_ranker(self, spec: Union[str, Ranker], population: Population) -> Ranker:
         if isinstance(spec, Ranker):
@@ -149,7 +170,7 @@ class Simulator:
 
     # ------------------------------------------------------------------ run
     def run(self, ranker: Union[str, Ranker] = "chord", n_windows: int = 8) -> SimulationResult:
-        population, authors = self._fresh_world()
+        population, authors, ring = self._fresh_world()
         welfare = Welfare(population)
         r = self.make_ranker(ranker, population)
         true_opinions = {a.id: a.opinion for a in population.agents}
@@ -220,7 +241,25 @@ class Simulator:
                     churn_samples.append(1.0 - inter / union if union else 0.0)
                 prev_feeds[agent.id] = cur
 
+            # Adversary: a single-target sybil ring boosts the target's posts. These
+            # are the reactions the ranker then learns from — the §5 attack in-loop.
+            target_new = []
+            if ring is not None:
+                target_new = [p for p in new_posts if p.author_id == ring["target_id"]]
+                for spid in ring["sybil_ids"]:
+                    for tp in target_new:
+                        exposures.append(Exposure(spid, tp.id, timestamp=float(w),
+                                                  source=ExposureSource.ORGANIC, propensity=0.5))
+                        reactions.append(Reaction(spid, tp.id,
+                                                  DEFAULT_REACTION_VALUES[ReactionKind.BOOST],
+                                                  kind=ReactionKind.BOOST,
+                                                  timestamp=float(w) + react_rng.random()))
+
             r.observe(reactions, post_map, exposures, w)
+
+            ring_target_blcb = mean_or_nan(
+                r.post_score(p.id) for p in target_new
+            ) if ring is not None else float("nan")
 
             # per-author reach feedback (drives volume) + (1+1)-ES style adaptation (§9.2)
             for author in authors:
@@ -255,6 +294,7 @@ class Simulator:
                 content_divisiveness=content_div,
                 content_true_value=content_val,
                 partisan_extremity=partisan_extremity,
+                ring_target_blcb=ring_target_blcb,
                 reach_by_label=reach_by_label,
             ))
         return result
