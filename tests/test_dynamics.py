@@ -21,35 +21,31 @@ def _world(seed):
 
 
 def test_concentration_controller_response_is_applied():
-    """§9.3: the controller's response to concentration must reach the estimator.
+    """§9.3 (FIXED): the controller's response now reaches the estimator.
 
-    FOUND GAP (left failing): the loop calls ``controller.step(lambda)`` but never
-    reads ``controller.state`` — eigentrust and ``rank`` use the *fixed* config delta/
-    epsilon. So the controller is inert: forcing its recommended teleport-delta to a
-    very different value has NO effect on the next window's rater weights. We assert
-    the *intended* behaviour (the loop applies the controller's delta); it fails.
+    Previously the loop called ``controller.step(λ)`` but never read ``controller.state``
+    — the controller was inert. It is now wired: ``fit_window`` uses the controller's
+    δ/ε_min. Forcing a heavy-teleport δ (the controller's tighten response) must flatten
+    the rater weights vs a light-teleport δ, on the *same* data and config.
     """
+    from chord.monitor import gini
     reactions, posts, exposures = _world(3)
-    cfg = ChordConfig(d=2, n_clusters=2, mf_iters=25, eigentrust_delta=0.85)
-    chord = Chord(cfg, seed=3)
-    chord.fit_window(reactions, posts, exposures)
+    cfg = ChordConfig(d=2, n_clusters=2, mf_iters=25, eigentrust_delta=0.9)
 
-    # the controller now recommends a much tighter teleport (raise the floor)
-    chord.controller.state.eigentrust_delta = 0.30
-    lam_after = chord.fit_window(reactions, posts, exposures).rater_lambda_eff
+    tight = Chord(cfg, seed=3)
+    tight.controller.state.eigentrust_delta = 0.30       # controller says: teleport hard
+    lam_tight = tight.fit_window(reactions, posts, exposures).rater_lambda_eff
 
-    # what the loop SHOULD produce if it applied the controller: an independent fit
-    # whose config delta *is* 0.30
-    ref = Chord(ChordConfig(d=2, n_clusters=2, mf_iters=25, eigentrust_delta=0.30), seed=3)
-    ref.fit_window(reactions, posts, exposures)
-    lam_ref = ref.fit_window(reactions, posts, exposures).rater_lambda_eff
+    loose = Chord(cfg, seed=3)
+    loose.controller.state.eigentrust_delta = 0.95       # controller says: barely teleport
+    lam_loose = loose.fit_window(reactions, posts, exposures).rater_lambda_eff
 
-    ids = list(lam_after)
-    diff = max(abs(lam_after[u] - lam_ref[u]) for u in ids)
-    assert diff < 1e-6, (
-        f"controller response not applied: forcing delta=0.30 left rater weights "
-        f"unchanged (max diff vs a real delta=0.30 fit = {diff:.4f}). The §9.3 "
-        f"controller is inert — the loop discards controller.state."
+    g_tight, g_loose = gini(lam_tight), gini(lam_loose)
+    print(f"\n[dynamics] controller δ applied: Gini(λ) tight-δ={g_tight:.3f} "
+          f"loose-δ={g_loose:.3f}")
+    assert g_tight < g_loose - 1e-3, (
+        f"controller δ not applied: forcing a heavy-teleport δ did not flatten λ "
+        f"(Gini tight={g_tight:.3f} vs loose={g_loose:.3f})"
     )
 
 

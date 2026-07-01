@@ -21,7 +21,7 @@ lambda/credibility update is the slow timescale.
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
@@ -114,7 +114,14 @@ class Chord:
         affective_signal: Optional[Mapping[Id, float]] = None,
     ) -> WindowState:
         """Run one learning window (steps 1-7 of §9.1)."""
-        cfg = self.config
+        # Apply the §9.3 concentration controller's current response: if a prior window
+        # saw Gini(λ) breach the ceiling, the controller lowered δ (more teleport) and
+        # raised ε_min; use those here instead of the static config. In healthy
+        # operation the controller relaxes back to the configured δ/ε_min, so this is a
+        # no-op until concentration actually breaches — then it acts (§9.3).
+        cs = self.controller.state
+        cfg = replace(self.config, eigentrust_delta=cs.eigentrust_delta,
+                      epsilon_min=cs.epsilon_min)
         posts = dict(posts)
         post_authors = {pid: p.author_id for pid, p in posts.items()}
         exposures = list(exposures or [])
@@ -248,7 +255,10 @@ class Chord:
             raise RuntimeError("call fit_window before rank")
         knobs = knobs or UserKnobs()
         knobs.validate()
-        eps = self.config.clamp_epsilon(knobs.epsilon)
+        # honor the controller's raised ε_min (§9.3 persistent excitation) when it has
+        # tightened in response to concentration; otherwise this equals the config floor.
+        eps = float(min(self.config.epsilon_max,
+                        max(self.controller.state.epsilon_min, knobs.epsilon)))
         st = self.state
         extras = extras or {}
 

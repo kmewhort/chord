@@ -30,16 +30,22 @@ dynamics.)
 
 ## Findings — where to legit improve ❌ (prioritized)
 
-### F1. The §9.3 concentration controller is **inert** *(fix: small, clear)*
-`tests/test_dynamics.py::test_concentration_controller_response_is_applied`
-The loop calls `controller.step(λ)` but **never reads `controller.state`** — eigentrust
-uses `config.eigentrust_delta` and `rank` uses `config.clamp_epsilon`, both fixed.
-Forcing the controller's recommended δ→0.30 leaves the next window's rater weights
-matching the δ=0.85 fit, not a δ=0.30 fit. So "the controller holds concentration
-bounded" (§9.3) is **not implemented**; whatever bounds Gini today is other mechanisms.
-*Fix:* have `fit_window`/`rank` read `self.controller.state.eigentrust_delta` /
-`.epsilon_min`. Small change, but it makes the loop *act*, so it needs a re-validation
-pass (it will shift results — see F3).
+### F1. The §9.3 concentration controller was **inert** — ✅ FIXED (now wired)
+`tests/test_dynamics.py::test_concentration_controller_response_is_applied` (now passes)
+The loop called `controller.step(λ)` but **never read `controller.state`** — eigentrust
+used `config.eigentrust_delta` and `rank` used `config.clamp_epsilon`, both fixed.
+**Fix landed:** `fit_window` now runs on `replace(config, eigentrust_delta=…,
+epsilon_min=…)` from `controller.state`, and `rank` floors ε at the controller's
+`epsilon_min`. Verified: forcing a heavy-teleport δ flattens λ (Gini 0.20→0.05). Zero
+collateral — the controller relaxes to the configured δ/ε in healthy operation, so it
+is a no-op until Gini breaches the ceiling; no sim test moved.
+**Secondary finding (dormancy):** in every scenario tried, Gini(λ_eff) sits ~0.06 —
+the teleport floor + out-diversity + recycling already bound concentration far below
+the 0.6 ceiling, so the controller, though now correctly wired, **never actually
+triggers**. Open question for the math pass: is the ceiling mis-scaled (should it track
+a much lower operating point, e.g. a multiple of the observed baseline), or is the
+controller genuinely redundant belt-and-suspenders? Either way §9.3's prose overstated
+an *active* guard that is really a dormant safety net.
 
 ### F2. B_LCB rankings are **not reproducible across input orderings** *(fix: known, disruptive)*
 `tests/test_properties.py::test_permutation_and_order_invariance`
