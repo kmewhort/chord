@@ -28,7 +28,7 @@ from .population import Agent, Population, make_bipolar_population
 from .rankers import (
     ChordRanker, ChronologicalRanker, EngagementRanker, OracleRanker, RandomRanker, Ranker,
 )
-from .response import expected_approval, react
+from .response import expected_approval, react, vouch
 
 
 @dataclass
@@ -196,6 +196,8 @@ class Simulator:
 
         content_rng = np.random.default_rng(self.seed)         # world/content stream
         react_rng = np.random.default_rng(self.seed + 1)       # reaction/exploration stream
+        vouch_rng = np.random.default_rng(self.seed + 2)       # merit channel — its OWN
+        # stream so adding vouches never perturbs the approval-reaction trajectory
 
         result = SimulationResult()
         live_posts: List[Post] = []
@@ -252,6 +254,11 @@ class Simulator:
                     sat_sum += expected_approval(agent, truth)
                     if kind is not None:
                         reactions.append(self._reaction(agent.id, pid, kind, w, react_rng))
+                    # merit/vouch channel (§10 depth) — opinion-independent, ~quality
+                    mv = vouch(agent, truth, vouch_rng)
+                    if mv is not None:
+                        reactions.append(Reaction(agent.id, pid, mv,
+                                                  kind=ReactionKind.VOUCH, timestamp=float(w)))
 
                 cur = set(feed)
                 if agent.id in prev_feeds and (prev_feeds[agent.id] or cur):

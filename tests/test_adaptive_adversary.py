@@ -1,9 +1,8 @@
 """Adaptive red-team adversaries: attack the *defenses*, not the naive baseline.
 
-C-axis: a defense that only beats a fixed attacker is weak. These check the defenses
-at an adaptive attacker's optimum. One holds (the depth gate is Goodhart-resistant to
-*more breadth*); one surfaces the expected limit (it trusts the depth *signal*, so a
-forger evades) — a finding left failing.
+C-axis: a defense that only beats a fixed attacker is weak. Since F4, depth is an
+**earned** latent estimated from a vouch channel (§10), so an author can neither forge
+it nor buy it with more approval breadth.
 """
 import numpy as np
 import pytest
@@ -11,66 +10,67 @@ import pytest
 from chord import ChordConfig, UserKnobs
 from chord.loop import Chord
 from chord.feed.value import FactorContext, blended_value
-from chord.types import Exposure, ExposureSource, Post, Reaction
+from chord.types import Exposure, ExposureSource, Post, Reaction, ReactionKind
 
 
-def _broad_world(bait_depth):
-    """Two clusters mildly approve both a genuine (high-quality) post and a bait post;
-    the bait's depth *signal* is the adaptive knob."""
+def _world(b_approval=0.55, b_vouch=False, b_feature=0.5):
+    """G earns cross-cluster vouches; B gets ``b_approval`` broad approval, optional
+    vouches, and a possibly-forged depth ``b_feature``. L is partisan filler (clusters)."""
     posts = {
-        "G": Post("G", "ag", features={"depth": 0.85}),   # genuine quality
-        "B": Post("B", "ab", features={"depth": bait_depth}),  # bait: quality low, signal = knob
+        "G": Post("G", "ag", features={"depth": 0.5}),
+        "B": Post("B", "ab", features={"depth": b_feature}),
         "L": Post("L", "al", features={"depth": 0.5}),
     }
     rx, exps = [], []
     for u in range(12):
         left = u < 6
-        for pid in ("G", "B"):
-            rx.append(Reaction(f"u{u}", pid, 0.55))         # both broadly, mildly liked
-            exps.append(Exposure(f"u{u}", pid, source=ExposureSource.ORGANIC, propensity=0.5))
+        rx.append(Reaction(f"u{u}", "G", 0.55))
+        rx.append(Reaction(f"u{u}", "B", b_approval))
         rx.append(Reaction(f"u{u}", "L", 1.0 if left else -1.0))
-        exps.append(Exposure(f"u{u}", "L", source=ExposureSource.ORGANIC, propensity=0.5))
+        for pid in ("G", "B", "L"):
+            exps.append(Exposure(f"u{u}", pid, source=ExposureSource.ORGANIC, propensity=0.5))
+        rx.append(Reaction(f"u{u}", "G", 1.0, kind=ReactionKind.VOUCH))     # genuine merit
+        exps.append(Exposure(f"u{u}", "G", source=ExposureSource.ORGANIC, propensity=0.5))
+        if b_vouch:
+            rx.append(Reaction(f"u{u}", "B", 1.0, kind=ReactionKind.VOUCH))
+            exps.append(Exposure(f"u{u}", "B", source=ExposureSource.ORGANIC, propensity=0.5))
     return posts, rx, exps
 
 
-def _value(chord, st, pid, posts, cfg):
+def _value(pid, st, posts, cfg):
     ctx = FactorContext(
         user_id="u0", post=posts[pid],
         b_lcb=st.bridging.b_lcb.get(pid, 0.0),
         result=st.result, divisiveness=st.divisiveness,
         knobs=UserKnobs(M=1.0),
-        extras={"depth": posts[pid].features["depth"],
+        extras={"depth": st.depth.get(pid, 0.5),         # the EARNED estimate, not the feature
                 "depth_reward": cfg.depth_reward, "depth_gate": cfg.depth_gate},
     )
     return blended_value(ctx)
 
 
-def test_depth_gate_resists_more_breadth():
-    """Adaptive bait can't beat the gate by buying more breadth (approval): with an
-    honest low depth signal, a broadly-liked bait stays below genuine quality."""
+def test_depth_is_earned_not_forged():
+    """F4: depth is estimated from the vouch channel, so forging the author feature does
+    nothing — genuinely-vouched content earns depth; the bait's forged feature is ignored
+    and it stays at the neutral prior, gated below the vouched post."""
     cfg = ChordConfig(d=2, n_clusters=2, mf_iters=40, depth_reward=0.5, depth_gate=0.5)
-    posts, rx, exps = _broad_world(bait_depth=0.1)      # honest: shallow bait signals shallow
-    chord = Chord(cfg, seed=0)
-    st = chord.fit_window(rx, posts, exps)
-    assert _value(chord, st, "B", posts, cfg) < _value(chord, st, "G", posts, cfg), (
-        "honest-signal bait should rank below genuine quality"
-    )
+    posts, rx, exps = _world(b_approval=0.55, b_vouch=False, b_feature=0.95)   # forged
+    st = Chord(cfg, seed=0).fit_window(rx, posts, exps)
+    dG, dB = st.depth.get("G", 0.5), st.depth.get("B", 0.5)
+    print(f"\n[adaptive] earned depth: vouched G={dG:.3f}  forged-feature bait B={dB:.3f}")
+    assert dB < 0.6, f"forged depth feature leaked into the estimate (B depth {dB:.3f})"
+    assert dG > dB + 0.15, f"cross-cluster vouches should earn depth ({dG:.3f} vs {dB:.3f})"
+    assert _value("B", st, posts, cfg) < _value("G", st, posts, cfg)
 
 
-def test_forged_depth_signal_evades_the_gate():
-    """FOUND LIMIT (left failing): the depth defense trusts the depth *signal*, so a
-    baiter that forges a high depth score makes shallow content match genuine quality.
-    This is the documented §10 caveat — the signal's own integrity is load-bearing."""
-    cfg = ChordConfig(d=2, n_clusters=2, mf_iters=40, depth_reward=0.5, depth_gate=0.5)
-    posts, rx, exps = _broad_world(bait_depth=0.95)     # forged: shallow bait claims depth
-    chord = Chord(cfg, seed=0)
-    st = chord.fit_window(rx, posts, exps)
-    vB = _value(chord, st, "B", posts, cfg)
-    vG = _value(chord, st, "G", posts, cfg)
-    print(f"\n[adaptive] forged-depth bait value={vB:.3f} vs genuine value={vG:.3f}")
-    # We WANT the gate to still hold bait below genuine even when the signal is forged;
-    # it cannot (it trusts the signal), so this fails — documenting the dependence.
-    assert vB < vG - 0.05, (
-        f"forged-depth bait ({vB:.3f}) matched/beat genuine quality ({vG:.3f}); the "
-        f"depth defense trusts the signal and is evadable by forging it."
-    )
+def test_earned_depth_resists_more_breadth():
+    """The bait can't beat the gate by buying more *approval* either: with more breadth
+    but no vouches (low earned depth), it stays below the genuinely-vouched post."""
+    cfg = ChordConfig(d=2, n_clusters=2, mf_iters=40, depth_reward=0.5, depth_gate=0.6)
+    posts, rx, exps = _world(b_approval=0.95, b_vouch=False)   # MORE approval, no vouches
+    st = Chord(cfg, seed=0).fit_window(rx, posts, exps)
+    print(f"\n[adaptive] breadth bait: b_lcb B={st.bridging.b_lcb['B']:.2f}>G={st.bridging.b_lcb['G']:.2f}"
+          f"  depth B={st.depth.get('B',0.5):.2f} G={st.depth.get('G',0.5):.2f}"
+          f"  value B={_value('B',st,posts,cfg):.3f} G={_value('G',st,posts,cfg):.3f}")
+    assert st.bridging.b_lcb["B"] > st.bridging.b_lcb["G"]      # bait bought more approval
+    assert _value("G", st, posts, cfg) > _value("B", st, posts, cfg)   # yet the deep post wins

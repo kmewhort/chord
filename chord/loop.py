@@ -27,12 +27,13 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 import numpy as np
 
 from .config import ChordConfig, UserKnobs
-from .types import Exposure, ExposureSource, Id, Post, Reaction
+from .types import Exposure, ExposureSource, Id, Post, Reaction, ReactionKind
 from .model import (
     BridgingScorer,
     BridgingScores,
     ClusterModel,
     cluster_reception,
+    estimate_depth,
     DivisivenessModel,
     FactorizationResult,
     MatrixFactorization,
@@ -74,6 +75,7 @@ class WindowState:
     post_authors: Dict[Id, Id]
     realized_strength: Dict[Id, float]
     n_iter_inner: int = 0
+    depth: Dict[Id, float] = field(default_factory=dict)  # estimated q_p (§10), earned
 
 
 class Chord:
@@ -125,6 +127,12 @@ class Chord:
                       epsilon_min=cs.epsilon_min)
         posts = dict(posts)
         post_authors = {pid: p.author_id for pid, p in posts.items()}
+        # Split the merit/vouch channel (§10 depth) from the approval channel: the MF,
+        # clustering, B_LCB and λ are fit on approval; depth q_p is estimated on vouches.
+        reactions = list(reactions)
+        vouch_reactions = [r for r in reactions if r.kind == ReactionKind.VOUCH]
+        if vouch_reactions:
+            reactions = [r for r in reactions if r.kind != ReactionKind.VOUCH]
         exposures = list(exposures or [])
         exposure_index: Dict[Tuple[Id, Id], Exposure] = {
             (e.user_id, e.post_id): e for e in exposures
@@ -175,6 +183,17 @@ class Chord:
             rater_lambda=rater_lambda, exposures=exposure_index,
         )
         reception = cluster_reception(reactions, weights, clusters)
+
+        # estimated content depth q_p on the vouch channel (§10) — earned, not author-set.
+        # λ-weighted so a fresh sybil's vouch counts ~0; opinion clusters are shared.
+        depth: Dict[Id, float] = {}
+        if vouch_reactions:
+            vouch_weights = compute_ipw_weights(
+                vouch_reactions, self.propensity_model, cfg,
+                rater_lambda=rater_lambda, exposures=exposure_index,
+            )
+            depth = estimate_depth(vouch_reactions, vouch_weights, clusters, cfg)
+
         reception_caps = None
         if cfg.exploration_anchor_cap:
             self.reception_anchor.update(reactions, exposures, post_authors)
@@ -240,6 +259,7 @@ class Chord:
             post_authors=post_authors,
             realized_strength=realized_strength,
             n_iter_inner=n_inner,
+            depth=depth,
         )
         return self.state
 
@@ -280,7 +300,9 @@ class Chord:
             seen = post.id in st.result.y_post and np.isfinite(b_lcb)
             post_extras = dict(extras.get(post.id, {}))
             if depth_on:
-                post_extras.setdefault("depth", float(post.features.get("depth", 1.0)))
+                # Depth is the EARNED estimate q_p (§10), not the author-set feature — a
+                # baiter cannot forge it. Unvouched posts sit at neutral 0.5.
+                post_extras.setdefault("depth", float(st.depth.get(post.id, 0.5)))
                 post_extras.setdefault("depth_reward", cfg.depth_reward)
                 post_extras.setdefault("depth_gate", cfg.depth_gate)
             ctx = FactorContext(

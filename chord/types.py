@@ -28,6 +28,7 @@ class ReactionKind(Enum):
     FAVORITE = "favorite"
     EXPOSED_NO_REACTION = "exposed_no_reaction"
     MUTE = "mute"
+    VOUCH = "vouch"  # merit/quality-channel vote (§10 depth), separate from approval
 
 
 # Canonical signed values. ``EXPOSED_NO_REACTION`` uses the unit weak-negative

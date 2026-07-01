@@ -27,7 +27,7 @@ from ..loop import Chord
 from ..model import MatrixFactorization
 from ..monitor import effective_rater_count, gini
 from ..propensity import LoggedPropensityModel
-from ..types import Id, Post
+from ..types import Id, Post, ReactionKind
 from .metrics import Welfare
 
 
@@ -117,6 +117,9 @@ class EngagementRanker(Ranker):
         return [pid for _, pid in scored[:n_slots]]
 
     def observe(self, reactions, posts, exposures, window):
+        # The merit/vouch channel (§10) is a CHORD-specific signal; the engagement
+        # baseline must not learn from it (that would hand it a free quality signal).
+        reactions = [r for r in reactions if r.kind is not ReactionKind.VOUCH]
         if reactions:
             self._result = MatrixFactorization(self.config, seed=self.seed).fit(reactions, posts)
 

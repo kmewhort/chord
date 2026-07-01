@@ -64,3 +64,21 @@ def react(agent: Agent, truth: PostTruth, rng: np.random.Generator) -> Optional[
     if rng.random() < p_approve:
         return ReactionKind.BOOST if p_approve > 0.7 else ReactionKind.FAVORITE
     return ReactionKind.MUTE if p_approve < 0.3 else ReactionKind.EXPOSED_NO_REACTION
+
+
+VOUCH_NOISE = 0.15
+VOUCH_HI, VOUCH_LO = 0.55, 0.45
+
+
+def vouch(agent: Agent, truth: PostTruth, rng: np.random.Generator) -> Optional[float]:
+    """Merit vote on the quality channel (§10 depth): a reader's forge-resistant read of
+    whether the post is *substantive*. Opinion-INDEPENDENT — it tracks ``truth.quality``,
+    not alignment — so genuine depth earns cross-cluster vouches while a broadly-approved
+    but shallow bait earns anti-vouches. The estimated depth q_p is built from these, so
+    an author cannot set it (Appendix C.4, §13#11). Returns +1 / -1 / None (no strong read)."""
+    perceived = truth.quality + rng.normal(0, VOUCH_NOISE)
+    if perceived > VOUCH_HI:
+        return 1.0
+    if perceived < VOUCH_LO:
+        return -1.0
+    return None
