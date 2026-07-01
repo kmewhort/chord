@@ -224,10 +224,20 @@ class Chord:
         st = self.state
         extras = extras or {}
 
+        # Anti-bait depth handling (§10): fold the per-post depth signal and the
+        # system depth weights into each post's extras when configured.
+        cfg = self.config
+        depth_on = cfg.depth_reward > 0.0 or cfg.depth_gate > 0.0
+
         cand_objs: List[Candidate] = []
         for post in candidates:
             b_lcb = st.bridging.b_lcb.get(post.id, float("-inf"))
             seen = post.id in st.result.y_post and np.isfinite(b_lcb)
+            post_extras = dict(extras.get(post.id, {}))
+            if depth_on:
+                post_extras.setdefault("depth", float(post.features.get("depth", 1.0)))
+                post_extras.setdefault("depth_reward", cfg.depth_reward)
+                post_extras.setdefault("depth_gate", cfg.depth_gate)
             ctx = FactorContext(
                 user_id=user_id,
                 post=post,
@@ -235,7 +245,7 @@ class Chord:
                 result=st.result,
                 divisiveness=st.divisiveness,
                 knobs=knobs,
-                extras=dict(extras.get(post.id, {})),
+                extras=post_extras,
             )
             base_value = blended_value(ctx)
             if not seen:

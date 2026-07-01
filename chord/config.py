@@ -89,6 +89,13 @@ class ChordConfig:
     # Polis and reached b_p parity on Community Notes (Appendix C.5).
     bridging_aggregator: str = "nash"
     bridging_ede_eps: float = 4.0      # Atkinson inequality aversion (eps→∞ ≈ min)
+    # Anti-bait depth handling (§10): when a per-post depth/quality signal is
+    # available (``post.features['depth']`` ∈ [0,1]), the bridge factor promotes
+    # genuine depth (additive ``depth_reward``·(depth−½)) and attenuates a *shallow*
+    # post's positive bridged support toward a floor (multiplicative ``depth_gate``),
+    # so shallow "bridging-bait" cannot be crowned. Both 0 ⇒ off (needs a signal).
+    depth_reward: float = 0.0
+    depth_gate: float = 0.0
     n_clusters: int = 2  # default Partition adapter cluster count
     # Retained for the legacy subtractive-LCB path and external references; the
     # default shrinkage bound (above) does not use them.

@@ -68,8 +68,30 @@ FactorFn = Callable[[FactorContext], float]
 
 
 def bridge_factor(ctx: FactorContext) -> float:
-    """The load-bearing bridging factor = V(u,p) (§7.1)."""
-    return value(ctx.user_id, ctx.post.id, ctx.b_lcb, ctx.result, ctx.divisiveness, ctx.knobs)
+    """The load-bearing bridging factor = V(u,p) (§7.1), with an optional depth gate.
+
+    Bridging-bait — shallow, broadly-mildly-liked content — earns a high B_LCB it
+    doesn't deserve (§10). When a system-level ``depth_gate`` weight is supplied
+    (via ``extras['depth_gate']``, not a user knob), a post's *positive* bridged
+    support is attenuated toward a floor by its depth/quality signal
+    (``extras['depth']`` ∈ [0,1]): a shallow post cannot be crowned as bridging no
+    matter how broad its approval, while negative scores are untouched. This is a
+    multiplicative Goodhart gate — harder to game than adding a depth bonus, since a
+    baiter cannot buy back a crown with more breadth. Gate off (=0) ⇒ exact §7.1.
+    """
+    b = ctx.b_lcb
+    depth = ctx.extras.get("depth", 1.0)
+    gate = ctx.extras.get("depth_gate", 0.0)
+    if gate > 0.0 and b > 0.0:
+        floor = 0.25  # even zero-depth content keeps this fraction of its bridge score
+        b = b * (1.0 - gate * (1.0 - floor) * (1.0 - depth))
+    v = value(ctx.user_id, ctx.post.id, b, ctx.result, ctx.divisiveness, ctx.knobs)
+    # Structural depth reward (system integrity, not a user knob): promote genuine
+    # depth/quality and demote shallow content, centred so median depth is neutral.
+    reward = ctx.extras.get("depth_reward", 0.0)
+    if reward > 0.0:
+        v += reward * (depth - 0.5)
+    return v
 
 
 def recency_factor(ctx: FactorContext) -> float:

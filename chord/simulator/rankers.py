@@ -63,6 +63,8 @@ class ChordRanker(Ranker):
     def __init__(self, config: ChordConfig, knobs: UserKnobs, seed: int = 0):
         self.config = config
         self.knobs = knobs
+        # Anti-bait depth handling is config-driven (config.depth_reward/depth_gate);
+        # Chord.rank folds the post's depth feature in automatically when set.
         self.chord = Chord(config, propensity_model=LoggedPropensityModel(config.epsilon_min),
                            seed=seed)
 
