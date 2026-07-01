@@ -53,9 +53,17 @@ class AuthorAgent:
     # hidden-attribute propensities
     toxicity: float = 0.1
     quality: float = 0.7
+    # performativity: how fast the author moves its *content direction* toward
+    # whatever the ranker rewarded (0 = fixed style; the §9.2 stability knob). It
+    # sets the (1+1)-ES trial step, so bigger values chase harder — and can
+    # destabilize the loop, which is the point of the phase-transition sweep.
+    performativity: float = 0.0
     # running estimate of realized reach-per-post (updated by the engine)
     realized_reach: float = 1.0
     label: str = ""
+    # (1+1)-ES state: the committed style, the current trial, and its reach-to-beat
+    _committed: Optional[np.ndarray] = None
+    _best_reach: float = -1.0
 
     def generate(self, window: int, rng: np.random.Generator) -> List[Post]:
         """Produce this window's posts; volume adapts to realized reach.
@@ -68,6 +76,14 @@ class AuthorAgent:
         if self.adaptivity > 0:
             volume = int(round(self.base_volume + self.adaptivity * self.realized_reach))
         volume = max(1, min(self.max_volume, volume))
+
+        # (1+1)-ES trial: perturb the committed style before producing this window's
+        # posts; adapt_style() below keeps it only if reach improved.
+        if self.performativity > 0.0:
+            if self._committed is None:
+                self._committed = self.style.copy()
+            step = self.performativity * 1.2
+            self.style = self._committed + rng.normal(0, step, size=self._committed.shape)
 
         posts: List[Post] = []
         for k in range(volume):
@@ -84,6 +100,23 @@ class AuthorAgent:
             )
             _POST_TRUTH[pid] = PostTruth(loading=loading, toxicity=tox, quality=qual)
         return posts
+
+    def adapt_style(self, realized_reach: float) -> None:
+        """(1+1)-ES accept/reject: keep this window's trial style iff reach improved.
+
+        The author hill-climbs realized reach in *content-direction* space. Under a
+        bridging ranker, reach is highest for broadly-received (near-origin) content,
+        so authors migrate toward bridging; under engagement, reach is highest for
+        in-group content, so they polarize. ``performativity`` sets the trial step:
+        larger steps chase harder and can overshoot into oscillation (§9.2).
+        """
+        if self.performativity <= 0.0 or self._committed is None:
+            return
+        if realized_reach >= self._best_reach:
+            self._committed = self.style.copy()   # accept the trial
+            self._best_reach = realized_reach
+        else:
+            self.style = self._committed.copy()   # reject; snap back to committed
 
 
 # Side table of ground-truth post attributes (the simulator's hidden truth).
@@ -104,8 +137,13 @@ def reset_truth() -> None:
 
 
 def make_authors(d: int = 2, seed: int = 0, d_true: Optional[int] = None,
-                 include_toxic_and_bait: bool = True) -> List[AuthorAgent]:
-    """The standard cast (Appendix C.4). ``d_true`` matches the population's true dim."""
+                 include_toxic_and_bait: bool = True,
+                 performativity: float = 0.0) -> List[AuthorAgent]:
+    """The standard cast (Appendix C.4). ``d_true`` matches the population's true dim.
+
+    ``performativity`` (the §9.2 knob) is applied to every author's style-chasing
+    rate; 0 keeps content styles fixed.
+    """
     d_true = d_true if d_true is not None else d
     authors = [
         AuthorAgent(id=1000, style=np.zeros(d_true), spread=0.15, adaptivity=0.5,
@@ -130,6 +168,9 @@ def make_authors(d: int = 2, seed: int = 0, d_true: Optional[int] = None,
                         base_volume=1, max_volume=5, toxicity=0.05, quality=0.1,
                         label="bridging_bait"),
         ]
+    if performativity:
+        for a in authors:
+            a.performativity = performativity
     return authors
 
 

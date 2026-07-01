@@ -48,6 +48,10 @@ class WindowMetrics:
     satisfaction: float        # viewer's expected approval of shown posts
     recovery: float            # estimator's recovery of the true opinion geometry
     feed_churn: float          # performative stability (1 - Jaccard vs last window)
+    # ecosystem-level: what authors *produce* (captures performative adaptation)
+    content_divisiveness: float = float("nan")
+    content_true_value: float = float("nan")
+    partisan_extremity: float = float("nan")   # mean |style·axis0| of partisan authors
     reach_by_label: Dict[str, float] = field(default_factory=dict)
 
     # back-compat alias
@@ -98,6 +102,7 @@ class Simulator:
         d_true: Optional[int] = None,
         adaptive_authors: bool = True,
         include_toxic_and_bait: bool = True,
+        performativity: float = 0.0,
     ):
         # small per-author budget so the conserved-budget mechanism (§8) binds.
         self.config = config or ChordConfig(
@@ -111,13 +116,15 @@ class Simulator:
         self.seed = seed
         self.adaptive_authors = adaptive_authors
         self.include_toxic_and_bait = include_toxic_and_bait
+        self.performativity = performativity
 
     # ---------------------------------------------------------------- world
     def _fresh_world(self):
         pop = make_bipolar_population(self.n_users, d=self.d, seed=self.seed,
                                       d_true=self.d_true)
         authors = make_authors(d=self.d, seed=self.seed, d_true=self.d_true,
-                               include_toxic_and_bait=self.include_toxic_and_bait)
+                               include_toxic_and_bait=self.include_toxic_and_bait,
+                               performativity=self.performativity)
         if not self.adaptive_authors:
             for a in authors:
                 a.adaptivity = 0.0
@@ -160,6 +167,12 @@ class Simulator:
                 new_posts.extend(author.generate(w, content_rng))
             live_posts = new_posts + live_posts[: 3 * len(new_posts)]
             post_map = {p.id: p for p in live_posts}
+
+            # ecosystem: divisiveness/value of everything produced this window
+            new_truths = [true_post(p.id) for p in new_posts]
+            new_truths = [t for t in new_truths if t is not None]
+            content_div = mean_or_nan(welfare.divisiveness(t) for t in new_truths)
+            content_val = mean_or_nan(welfare.true_value(t) for t in new_truths)
 
             reactions: List[Reaction] = []
             exposures: List[Exposure] = []
@@ -209,13 +222,20 @@ class Simulator:
 
             r.observe(reactions, post_map, exposures, w)
 
+            # per-author reach feedback (drives volume) + (1+1)-ES style adaptation (§9.2)
             for author in authors:
                 npp = max(1, posts_by_author.get(author.id, 1))
                 author.realized_reach = reach.get(author.id, 0) / npp
+                author.adapt_style(author.realized_reach)
             reach_by_label = {
                 a.label: (reach.get(a.id, 0) / max(1, posts_by_author.get(a.id, 1)))
                 for a in authors
             }
+            partisan = [a for a in authors if "partisan" in a.label]
+            partisan_extremity = mean_or_nan(
+                abs(float((a._committed if a._committed is not None else a.style)[0]))
+                for a in partisan
+            )
 
             diag = r.diagnostics()
             recovery = embedding_recovery(r.estimated_opinions() or {}, true_opinions)
@@ -232,6 +252,9 @@ class Simulator:
                 satisfaction=sat_sum / n_impr if n_impr else float("nan"),
                 recovery=recovery,
                 feed_churn=float(np.mean(churn_samples)) if churn_samples else 0.0,
+                content_divisiveness=content_div,
+                content_true_value=content_val,
+                partisan_extremity=partisan_extremity,
                 reach_by_label=reach_by_label,
             ))
         return result
