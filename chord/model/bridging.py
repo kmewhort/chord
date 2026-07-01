@@ -142,36 +142,37 @@ class BridgingScorer:
         clusters: ClusterModel,
         reception: Optional[Mapping[int, tuple]],
         reception_cap: Optional[float],
+        prior: Optional[Sequence[float]] = None,
     ):
-        """Return (grand_prior, shrunk per-cluster receptions) or (None, None) if unseen.
+        """Return (prior, shrunk per-cluster receptions) or (None, None) if unseen.
 
         ``reception`` maps cluster index -> (n_cp, r_emp_cp): the propensity-corrected
         evidence weight and the IPW-weighted empirical mean of cluster-c's signed
-        reactions to the post. Each cluster shrinks toward ``grand = μ + b_a + b_p``
-        (the reproducible convex biases) with weight ``n_cp/(n_cp+n0)``.
+        reactions to the post. Each cluster shrinks toward its ``prior`` with weight
+        ``n_cp/(n_cp+n0)``. The default prior is the reproducible global mean μ (not
+        μ+b_a+b_p — the MF biases carry the embedding's order-dependence; on real data the
+        empirical means already carry the post/author signal, μ scored AUC 0.9996). A
+        thin cluster then regresses to μ ("not credited until tested"), which is lenient
+        on untested one-sided content; passing a **hierarchical author×cluster prior**
+        (E9, §4.2) instead makes B_LCB predict-low on a firehose *before* the budget bites.
         """
         if post_id not in result.y_post:
             return None, None
-        # Prior is the reproducible global mean μ, not μ+b_a+b_p: the MF biases carry the
-        # embedding's order-dependence (they drop reproducibility to ~0.85), and on real
-        # data the empirical cluster means already carry the post/author signal (grand=μ
-        # scored AUC 0.9996). Thin clusters regress to the population mean — "not credited
-        # until tested." (Trade-off: this is more lenient on untested one-sided content;
-        # the author budget §8, not B_LCB, is what bounds a firehose's total reach.)
-        grand = result.mu
         cfg = self.config
         K = clusters.n_clusters
+        prior_c = (np.asarray(prior, dtype=float) if prior is not None
+                   else np.full(K, result.mu))
         rec = reception or {}
-        n_cp = np.array([float(rec.get(c, (0.0, grand))[0]) for c in range(K)])
-        r_emp = np.array([float(rec.get(c, (0.0, grand))[1]) for c in range(K)])
+        n_cp = np.array([float(rec.get(c, (0.0, prior_c[c]))[0]) for c in range(K)])
+        r_emp = np.array([float(rec.get(c, (0.0, prior_c[c]))[1]) for c in range(K)])
         w = n_cp / (n_cp + cfg.bridging_shrinkage_n0)   # empirical-Bayes trust per cluster
-        r_shrunk = grand + w * (r_emp - grand)
+        r_shrunk = prior_c + w * (r_emp - prior_c)
         if reception_cap is not None and np.isfinite(reception_cap):
             # Cap each cluster's reception at the unconfounded exploration-anchored
             # upper bound: a distributed ring's common-mode lift of organic reception
             # above what random exposure reveals is discarded (§13.10, §6.2).
             r_shrunk = np.minimum(r_shrunk, reception_cap)
-        return grand, r_shrunk
+        return prior_c, r_shrunk
 
     def score_post(
         self,
@@ -181,10 +182,11 @@ class BridgingScorer:
         clusters: ClusterModel,
         reception: Optional[Mapping[int, tuple]] = None,
         reception_cap: Optional[float] = None,
+        prior: Optional[Sequence[float]] = None,
     ) -> float:
         """B_LCB for a single post (§4.2, empirical shrinkage form — Appendix C.5)."""
-        grand, r_shrunk = self._receptions(
-            post_id, author_id, result, clusters, reception, reception_cap)
+        _, r_shrunk = self._receptions(
+            post_id, author_id, result, clusters, reception, reception_cap, prior)
         if r_shrunk is None:
             return float("-inf")          # post not in the factorization
         return float(self._aggregate(r_shrunk))
@@ -221,18 +223,21 @@ class BridgingScorer:
         post_authors: Mapping[Id, Id],
         reception: Optional[Mapping[Id, Mapping[int, tuple]]] = None,
         reception_caps: Optional[Mapping[Id, float]] = None,
+        priors: Optional[Mapping[Id, Sequence[float]]] = None,
     ) -> BridgingScores:
         """Score every post in the factorization.
 
         ``reception`` maps post id -> {cluster index -> (n_cp, r_emp_cp)} (see
         ``_receptions``), built from the reactions + IPW weights + cluster labels.
+        ``priors`` optionally maps post id -> per-cluster shrinkage prior (E9); default μ.
         """
         out = BridgingScores()
         for pid in result.y_post:
             author = post_authors.get(pid)
             rec = None if reception is None else reception.get(pid)
             cap = None if reception_caps is None else reception_caps.get(pid)
-            grand, r_shrunk = self._receptions(pid, author, result, clusters, rec, cap)
+            pri = None if priors is None else priors.get(pid)
+            _, r_shrunk = self._receptions(pid, author, result, clusters, rec, cap, pri)
             out.b_lcb[pid] = float("-inf") if r_shrunk is None else float(self._aggregate(r_shrunk))
             out.b_scalar[pid] = result.b_post.get(pid, 0.0)
             out.per_cluster[pid] = r_shrunk if r_shrunk is not None else np.array([])

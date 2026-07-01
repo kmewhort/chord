@@ -7,6 +7,7 @@ from .factorization import FactorizationResult, MatrixFactorization
 from .divisiveness import DivisivenessModel, fit_divisiveness
 from .bridging import BridgingScorer, BridgingScores, ClusterModel, cluster_reception
 from .depth import estimate_depth
+from .priors import AuthorClusterReception, hierarchical_priors
 from .spectral import spectral_opinion_clusters
 from .coordination import CollusionTracker, coordination_scores
 from .reception_anchor import ExplorationAnchor
@@ -19,6 +20,8 @@ __all__ = [
     "BridgingScorer",
     "cluster_reception",
     "estimate_depth",
+    "AuthorClusterReception",
+    "hierarchical_priors",
     "spectral_opinion_clusters",
     "BridgingScores",
     "ClusterModel",

@@ -34,6 +34,8 @@ from .model import (
     ClusterModel,
     cluster_reception,
     estimate_depth,
+    AuthorClusterReception,
+    hierarchical_priors,
     DivisivenessModel,
     FactorizationResult,
     MatrixFactorization,
@@ -105,6 +107,8 @@ class Chord:
         self.controller = ConcentrationController(self.config)
         self.collusion = CollusionTracker()   # rolling loyal-bloc detector (§13.10)
         self.reception_anchor = ExplorationAnchor()   # exploration-anchored cap (§6.2/§13.10)
+        self.author_reception = AuthorClusterReception(  # E9 hierarchical-prior history
+            decay=self.config.hierarchical_decay)
         self.state: Optional[WindowState] = None
 
     # ------------------------------------------------------------- learning
@@ -208,8 +212,16 @@ class Chord:
         if cfg.exploration_anchor_cap:
             self.reception_anchor.update(reactions, exposures, post_authors)
             reception_caps = self.reception_anchor.caps(post_authors)
+        # E9: hierarchical author×cluster shrinkage priors (from history so far, i.e.
+        # leave-current-out), then fold this window's reception into the author history.
+        priors = None
+        if cfg.hierarchical_prior:
+            priors = hierarchical_priors(
+                reception, post_authors, self.author_reception, result.mu,
+                cfg.bridging_shrinkage_n0, cfg.hierarchical_n0_author, clusters.n_clusters)
+            self.author_reception.update(reception, post_authors)
         scorer = BridgingScorer(cfg)
-        bridging = scorer.score(result, clusters, post_authors, reception, reception_caps)
+        bridging = scorer.score(result, clusters, post_authors, reception, reception_caps, priors)
         # collusion defense (§5/§10): discount posts whose approvers are coordinated,
         # which a distributed cross-cluster ring cannot avoid (min-over-clusters can).
         if cfg.coordination_penalty > 0.0:
