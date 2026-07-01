@@ -152,38 +152,68 @@ penalizes a "fishing vs. libraries" split as much as a political fault line. We 
 (regress the signal on embedding dimensions). This is where the instance's "which divides
 do we care to bridge" decision physically lives (the ρ knob, §7).
 
+Two roles for this factorization must be kept separate. It supplies the *personalized* value
+$V(u,p)$ (§7) — where the embedding $x_u,y_p$ is genuinely needed and a non-unique local optimum
+is harmless — and, historically, the per-cluster reception for $B_{\mathrm{LCB}}$. Because the
+bilinear fit is non-convex and order-dependent (§4.2), the **authority** signal
+$B_{\mathrm{LCB}}$ no longer reads reception off the embedding; the opinion **clusters** it needs
+come instead from a deterministic spectral split of the (per-post-centred) reaction matrix — the
+Community Notes / Polis PCA-on-votes construction, canonicalized so it depends only on the data,
+not on input order or an RNG. ($D(p)=y_p^\top A y_p$ still rides the personalization embedding
+$y_p$; it enters only the fuzzy $V(u,p)$, not the reproducible authority score.)
+
 ### 4.2 Do not trust the scalar intercept — reconstruct per cluster
 
 The scalar $b_p$ is a linear proxy for diverse approval and diverges from the real target
 when clusters sit asymmetrically about the origin (it happily rewards a post one cluster
-loves and another merely tolerates). Using the Partition port's clusters $c$, reconstruct
-each cluster's predicted reception
+loves and another merely tolerates). So we compute reception **per opinion cluster,
+empirically**. Using deterministic opinion clusters $c$ (a canonical spectral split of the
+reaction matrix — *not* $k$-means on the learned embedding), take each cluster's
+**empirical reception** — the IPW-weighted mean of the signed reactions cluster-$c$ members
+actually gave the post —
 
 $$
-\hat r_{cp} \;=\; \mu + \bar b_c + b_{a(p)} + b_p + \langle \bar x_c,\, y_p\rangle
+r^{\mathrm{emp}}_{cp} \;=\; \frac{\sum_{u\in c}\, \omega_{up}\, r_{up}}{\sum_{u\in c}\, \omega_{up}},
+\qquad n_{cp} \;=\; \sum_{u\in c}\, \omega_{up}
 $$
 
-and define bridged support by **shrinking each cluster's reception toward the population mean
-by how much that cluster was actually exposed, then aggregating across clusters**:
+(sum over cluster-$c$ users who reacted to $p$; $\omega_{up}$ is the §6 propensity weight), and
+define bridged support by **shrinking each cluster's reception toward the global prior by how
+much evidence that cluster gave, then aggregating across clusters**:
 
 $$
 \boxed{\;B_{\mathrm{LCB}}(p) \;=\; \operatorname*{agg}_{c}\; \tilde r_{cp},
 \qquad
-\tilde r_{cp} \;=\; \bar r_p \;+\; \frac{n_{cp}}{n_{cp}+n_0}\,\big(\hat r_{cp}-\bar r_p\big)\;}
+\tilde r_{cp} \;=\; \mu \;+\; \frac{n_{cp}}{n_{cp}+n_0}\,\big(r^{\mathrm{emp}}_{cp}-\mu\big)\;}
 $$
 
-where $\bar r_p=\tfrac1{|C|}\sum_c \hat r_{cp}$ is the population (cluster-agnostic) reception
-and $n_{cp}$ is the (propensity-corrected, §6) number of cluster-$c$ users actually *exposed*
-to $p$. This is an empirical-Bayes (James–Stein / DerSimonian–Laird) shrinkage: a cluster that
-has barely been exposed ($n_{cp}\to0$) regresses to the mean — its apparent dissent is sampling
-noise, not a tested divide — while a **well-exposed** disagreeing cluster keeps its low
-reception and pulls the score down. **A post is not credited as bridging above the mean until
-it has survived contact with the people who would dislike it.** The aggregator is a knob: the
-default $\operatorname{agg}=\text{nash}$ (geometric mean of per-cluster agree-probabilities) is
-Polis's group-informed consensus — one opposed group blocks high consensus, without the
-brittleness of a hard $\min$; $\operatorname{agg}=\min$ recovers Ethelo's Rawlsian
-worst-cluster, and an Atkinson equally-distributed-equivalent interpolates between them. Keep
-the scalar $b_p$ as a cheap pre-filter; rank on $B_{\mathrm{LCB}}$.
+where $\mu$ is the global mean reception. This is an empirical-Bayes (James–Stein /
+DerSimonian–Laird) shrinkage: a cluster with little evidence ($n_{cp}\to0$) regresses to the
+prior — its apparent dissent is sampling noise, not a tested divide — while a **well-observed**
+disagreeing cluster keeps its low reception and pulls the score down. **A post is not credited
+as bridging above the prior until it has survived contact with the people who would dislike
+it.** The aggregator is a knob: the default $\operatorname{agg}=\text{nash}$ (geometric mean of
+per-cluster agree-probabilities) is Polis's group-informed consensus — one opposed group blocks
+high consensus, without the brittleness of a hard $\min$; $\operatorname{agg}=\min$ recovers
+Ethelo's Rawlsian worst-cluster, and an Atkinson equally-distributed-equivalent interpolates
+between them. Keep the scalar $b_p$ as a cheap pre-filter; rank on $B_{\mathrm{LCB}}$.
+
+**Reception is empirical, not the bilinear reconstruction $\langle\bar x_c, y_p\rangle$ used
+in an earlier version — for reproducibility.** Routing per-cluster reception through the
+learned embedding imported that embedding's non-identifiability into the one number that is
+supposed to be robust: the biased MF is bilinear and non-convex, so fitting it at fixed low
+rank by ALS from a random init lands in an *order-dependent* local optimum. Relabelling ids and
+shuffling the reaction order — the *same data* — then changed the bridged-support ranking
+(only $\sim0.73$ Spearman-stable). The empirical cluster mean depends on the embedding only
+through the **discrete, deterministic** cluster label, so $B_{\mathrm{LCB}}$ becomes reproducible
+($\sim0.96$; the residual is the $\lambda$-weighting in $\omega_{up}$, kept for Sybil
+resistance) — and on real data it is *more* faithful, not less (Community Notes helpful/not
+AUC $0.86\to0.9996$; Polis cluster ARI $0.06\to0.61$). The full MF (§4.1) is retained for the
+personalized value $V(u,p)$, where a local optimum is harmless; the *authority* signal
+$B_{\mathrm{LCB}}$ no longer depends on it. (The $\tfrac12(\lVert X\rVert^2+\lVert Y\rVert^2)$
+regularizer is the variational nuclear norm, so the completion $L=XY^\top$ *is* convex with a
+unique optimum — the instability was the fixed-low-rank ALS, and over-ranking or a convex
+Soft-Impute solver would reach it; empirical per-cluster means sidestep it entirely.)
 
 Note the deliberate asymmetry in how uncertainty is used: the exploration pool (§8) samples
 *high*-uncertainty posts optimistically to decide what to **audition**; $B_{\mathrm{LCB}}$
@@ -191,22 +221,26 @@ shrinks *low*-exposure clusters to the mean and credits only tested breadth to d
 **crown**. Optimism explores; conservatism rewards. This is what prevents imperfect estimates
 from manufacturing false bridging.
 
-**This form was arrived at empirically, against a deployed baseline (Appendix C.5).** An
-earlier version used a subtractive penalty $B_{\mathrm{LCB}}=\min_c[\hat r_{cp}-\beta\sigma/
-\sqrt{n_{cp}+1}]$. Benchmarked against X's Community Notes — the one deployed bridging system
-whose helpful/not decisions we can treat as ground truth — that version was *beaten by both*
-the scalar $b_p$ and a naive mean of signed helpfulness at recovering CN's
-`CURRENTLY_RATED_HELPFUL` status, because with a rating-count $n_{cp}$ the $\min$-minus-penalty
-demotes notes *sampled* by fewer clusters (noise) rather than notes *divisive* across clusters
-(risk) — it subtracted noise, not risk. Two changes fixed it and are now the shipped default:
-replace the subtractive penalty with the exposure-weighted shrinkage above, and aggregate with
-the nash product rather than a hard $\min$. On a class-balanced Community Notes sample the
-repaired $B_{\mathrm{LCB}}$ reaches $b_p$ parity — it can no longer be beaten by its own
-intercept — and on Polis, where genuine multi-group structure makes bridging differ from the
-mean, it tracks true cross-group support far better (Spearman $0.80\to0.97$). The one standing
-requirement is that $n_{cp}$ be a real propensity-corrected *exposure* count (§6), not a raw
-rating count; against CN's own intercept-thresholded label the naive mean remains unbeatable by
-construction, so the decisive evidence for the aggregator is Polis, not CN.
+**This form was arrived at empirically, against a deployed baseline (Appendix C.5),** through
+*two* corrections. First, an early version used a subtractive penalty $B_{\mathrm{LCB}}=
+\min_c[\hat r_{cp}-\beta\sigma/\sqrt{n_{cp}+1}]$. Benchmarked against X's Community Notes — the
+one deployed bridging system whose helpful/not decisions we can treat as ground truth — that
+version was *beaten by both* the scalar $b_p$ and a naive mean of signed helpfulness, because
+with a rating-count $n_{cp}$ the $\min$-minus-penalty demotes notes *sampled* by fewer clusters
+(noise) rather than notes *divisive* across clusters (risk) — it subtracted noise, not risk.
+Replacing it with the exposure-weighted empirical-Bayes shrinkage and the nash aggregator
+reached $b_p$ parity on CN and tracked genuine multi-group support far better on Polis. Second,
+the *reception itself* was moved from the bilinear reconstruction to the empirical cluster mean
+above (for the reproducibility reason just given): this both removes the order-dependence and
+*improves* faithfulness — on a class-balanced Community Notes sample the empirical
+$B_{\mathrm{LCB}}$ scores AUC $0.9996$ against `CURRENTLY_RATED_HELPFUL` (vs $0.86$ for the
+reconstruction, $0.96$ for $b_p$). The one standing requirement is that $n_{cp}$ be a real
+propensity-corrected exposure/evidence weight (§6). Two honest caveats remain: against CN's own
+intercept-thresholded label a naive mean is near-unbeatable *by construction*, so the decisive
+evidence for the aggregator is Polis, not CN; and with the global-mean prior $\mu$ an *untested
+one-sided* post regresses to neutral rather than being predicted-low, so $B_{\mathrm{LCB}}$ is
+deliberately lenient on unexposed content — it is the author budget (§8), not $B_{\mathrm{LCB}}$,
+that bounds a high-volume firehose's total reach.
 
 ## 5. Rater weighting: quality-tracking, not variance
 
@@ -503,10 +537,15 @@ is a **bounded stationary regime**, held by: persistent excitation ($\epsilon\ge
 changes; SNIPW + clipping to bound gradient variance; under-relaxation and two-timescale
 separation. Run a **controller on the estimator's own concentration**: track effective
 rater count $(\sum\lambda)^2/\sum\lambda^2$ (or $\mathrm{Gini}(\lambda)$); if it collapses,
-automatically raise the teleport floor $\delta$ and the damping. The exploration pool is
-therefore load-bearing four times over — provider fairness, cold-start, causal
-identification, and estimator stability — and its rate is a floored system invariant, not a
-user preference.
+automatically raise the teleport floor $\delta$ and $\epsilon_{\min}$. The controller's
+response now genuinely feeds back into the estimator — the next window's eigentrust and
+exploration floor read the controller's adjusted $\delta,\epsilon_{\min}$, not the static
+config — and relaxes to the configured values when concentration is healthy. In practice the
+other defenses hold $\mathrm{Gini}(\lambda)$ so far below the ceiling that it seldom fires (a
+noted open tuning question, §13#12), so it is best read as a bounded safety net rather than an
+always-active regulator. The exploration pool is therefore load-bearing four times over —
+provider fairness, cold-start, causal identification, and estimator stability — and its rate is
+a floored system invariant, not a user preference.
 
 **Separating endogenous from exogenous shift.** The reaction distribution moves for two
 reasons: the ranker's own allocations (endogenous, a feedback loop to *damp*) and real-world
@@ -624,16 +663,24 @@ Honest residuals, several of which no fix fully removes:
    resistance needs the *asymmetric* seeded teleport (supported, bound to the identity port) plus
    the forge-cost — and a sufficiently patient attacker who diversifies each puppet across many
    authors trades ring stealth for diluted impact. Hardened, not proven impossible.
-9. **$B_{\mathrm{LCB}}$ now earns its complexity — where the data has group structure** (§4.2,
-   validated in C.5). The earlier subtractive $\min_c$ penalty, fed raw rating counts, was beaten
-   on Community Notes by both the scalar $b_p$ and a naive mean (it subtracted noise, not risk).
-   Replacing it with exposure-weighted empirical-Bayes shrinkage and the nash aggregator reaches
-   $b_p$ parity on CN and *beats* it on Polis's genuine multi-group divides (Spearman
-   $0.80\to0.97$). Two residuals remain: against a label that is itself an intercept threshold
-   (CN's CRH) a naive mean is unbeatable by construction, so CN is the wrong court of appeal for
-   an aggregator; and the shrinkage is only as good as the exposure count $n_{cp}$ feeding it —
-   a rating-count proxy works, but a real propensity-corrected exposure model (§6) is the honest
-   input.
+9. **$B_{\mathrm{LCB}}$ now earns its complexity, and is reproducible** (§4.2, validated in C.5).
+   Two corrections got it here. The earlier subtractive $\min_c$ penalty, fed raw rating counts,
+   was beaten on Community Notes by both $b_p$ and a naive mean (it subtracted noise, not risk);
+   exposure-weighted empirical-Bayes shrinkage plus the nash aggregator fixed that. Then a
+   *reproducibility* failure surfaced under property testing: because per-cluster reception was
+   read off the **non-convex bilinear embedding**, relabelling ids and shuffling reaction order —
+   the same data — changed the ranking (only $\sim0.73$ Spearman-stable), and this fragility
+   propagated into the tuned simulator claims. Moving reception to the **empirical** IPW-shrunk
+   cluster mean, with **deterministic spectral clusters**, made $B_{\mathrm{LCB}}$ reproducible
+   ($\sim0.96$) *and more* faithful (CN AUC $0.86\to0.9996$, Polis ARI $0.06\to0.61$). Residuals:
+   against CN's intercept-thresholded label a naive mean is near-unbeatable by construction (so
+   Polis, not CN, is the aggregator's court of appeal); the shrinkage is only as good as the
+   evidence weight $n_{cp}$; and the global-mean prior makes $B_{\mathrm{LCB}}$ **lenient on
+   untested one-sided content** (a firehose post regresses to neutral, not below) — deliberately,
+   since the author budget (§8) is what bounds total reach, but it means $B_{\mathrm{LCB}}$ alone
+   no longer suppresses a one-sided flood. The full reproducibility fix is the empirical means;
+   an over-ranked or convex (Soft-Impute) completion for the *personalization* embedding is a
+   noted, not-yet-shipped, further step.
 10. **The camouflaged distributed ring — defended, with a residual** (§10, found *and fixed* in
     the simulator, App C.4). A ring that embeds puppets in *every* opinion cluster (by rating
     genuine content) and has them all boost one target fabricates cross-cluster support that
@@ -642,11 +689,23 @@ Honest residuals, several of which no fix fully removes:
     it). The attack's mechanism is a **rank-1 common-mode lift of the shared intercepts** $b_p,
     b_a$: the puppets scatter across clusters so their directional pull on $y_p$ cancels, and
     only their shared positive residual survives, lifting every cluster's reception equally. The
-    shipped defense keys on the one act camouflage cannot hide — the *same accounts* approving
-    *every* one of the target's posts over time — and gates it by the loyal bloc's **opinion-
-    cluster spread**, so a dispersed ring is penalized while a coherent single-cluster fanbase is
-    not; in the simulator this drives the ring's amplification from $2.8\times$ a legitimate
-    author's reach back below $1\times$, even for a high-quality target. A second, complementary
+    shipped defense keys on the one act camouflage cannot hide — the *same accounts*
+    disproportionately supporting the target over time — and gates it by how **opinion-dispersed**
+    that loyal bloc is, so a camouflaged ring (scattered across the divide) is penalized while a
+    coherent niche fanbase is not; in the simulator this drives the ring's amplification from
+    $2.8\times$ a legitimate author's reach back below $1\times$, and on the real Community Notes
+    slice it detects a $K{=}40$ ring (manufactured-fraction $\approx0.82$) and reverses its
+    inflation. Two design points earn their keep. Dispersion is measured on the **continuous
+    opinion-axis coordinate** (the spectral top vector), not a discrete cluster label — on
+    weakly-divided data the 2-way split is degenerate ($\approx$ all-one-cluster), which blinds a
+    cluster-entropy gate but not the coordinate spread. And loyalty is scored **continuously**
+    (support relative to the most-loyal supporter), with *no* hard threshold, so an adaptive ring
+    cannot approve *just under* a cutoff to dodge detection while still inflating. The residual is
+    sharp and, we argue, **fundamental**: a ring can still evade by spreading so thin that each
+    puppet supports $\lesssim$ one of the target's posts — at which point every account is
+    *statistically indistinguishable from a genuine casual supporter*, penalizing it would
+    penalize the dispersed organic support the system exists to reward, and its inflation is in any
+    case bounded to what genuine dispersed support would produce. A second, complementary
     defense is also built — an *exploration-anchor cap* that bounds each cluster's reception by
     the unconfounded ε-exploration reception (§6.2); it *de-confounds* organic reception (raising
     delivered true value) and removes the ring's common-mode lift $K$-independently, but cannot
@@ -662,6 +721,29 @@ Honest residuals, several of which no fix fully removes:
     time?) or out-of-band (identity/provenance); RPCA is doubly wrong (the boost lands in its
     low-rank part and is absorbed). Timing/provenance and costly identity remain the ultimate
     backstops, and this is the collusion analogue of the high-precision clique (#5).
+11. **The anti-bait depth signal is forgeable — open.** The §7/§10 anti-bait mechanism rewards
+    and gates on a per-post *depth* signal, and an adversarial test confirms the obvious hole: an
+    author who forges a high depth score makes shallow content (value $0.43$) beat genuine quality
+    ($0.36$). Structurally this is a §12 wall violation — depth is an *authority* quantity but sits
+    on the author-settable side. The gate does resist buying more *breadth* (Goodhart-robust to
+    approval), but not a forged signal. The fix is to make depth an **estimated latent**, computed
+    the way $B_{\mathrm{LCB}}$ already computes bridged support — an empirical-Bayes-shrunk,
+    per-cluster, λ-weighted intercept on a *separate quality-directed rating/read channel* — with
+    rater honesty on that channel enforced by a determinant-mutual-information (DMI) peer-prediction
+    weight in place of the current correlate-with-the-crowd heuristic. That moves depth to the
+    earned side of the wall (an author cannot set it; it emerges from others' cross-cluster
+    vouching) and inherits CHORD's collusion defenses for the residual it cannot close (the
+    coordinated-clique of #5/#10). Being built out; until then, keep $\text{depth\_reward}=0$ and
+    treat the gate as advisory.
+12. **The §9.3 concentration controller is wired but dormant.** It now genuinely feeds its response
+    back into the estimator (an earlier build computed a response the loop never read), and a
+    forced tighten measurably flattens $\lambda$. But in every scenario tried, baseline
+    concentration ($\mathrm{Gini}(\lambda)\approx0.06$) sits far below the ceiling that would
+    trigger it — the teleport floor, out-diversity transmit weight, and recycling already bound
+    concentration well below where the controller engages. So it is a correctly-wired safety net
+    that, at present operating points, never fires; whether the ceiling should track a multiple of
+    the observed baseline (making it an *active* regulator) or it is genuine belt-and-suspenders is
+    an open tuning question, not a correctness one.
 
 *Directions considered and declined.* Several defensive add-ons were evaluated and left out
 deliberately, on the principle that each addition should strengthen an existing mechanism or
@@ -876,6 +958,24 @@ run green against the fixed code and guard against regression; F3 remains a stan
 the semi-synthetic recipe (use a genuinely-MAR base matrix), not a code defect. This
 find-it-then-fix-it loop — real data surfaces a failure, cross-disciplinary math supplies the
 repair, the same benchmark confirms it — is exactly what Appendix C is for.
+
+**A deeper validation pass** then stress-tested the whole stack beyond claim-reproduction:
+property/metamorphic invariants over randomly-generated worlds, config-grid robustness sweeps
+(the welfare win holds $8/8$ configs), the dynamic §9 claims, and *adaptive* adversaries that
+optimize against the live defenses. It surfaced and drove fixes for three structural issues the
+first pass missed. (i) *Reproducibility*: relabelling ids and shuffling the reaction order — the
+same data — changed the $B_{\mathrm{LCB}}$ ranking (only $\sim0.73$ Spearman-stable), because
+per-cluster reception was read off the non-convex bilinear embedding; moving to **empirical**
+IPW-shrunk cluster means with **deterministic spectral clusters** made it $\sim0.96$-stable and
+*more* faithful (CN AUC $0.86\to0.9996$, Polis ARI $0.06\to0.61$; §4.2, §13#9). (ii) *The §9.3
+controller was inert* — it computed a response the loop never read; now wired (§13#12). (iii)
+*The collusion loyalty gate assumed a balanced split* and broke once the spectral split proved
+degenerate on the dense CN core; re-keyed onto the **continuous opinion-axis coordinate** with
+**continuous loyalty**, it detects a real Community-Notes ring (manufactured-fraction
+$\approx0.82$) and, under an adaptive partial-approval attacker, contains every *effective*
+attack — leaving only the thin-ring evasion that is provably indistinguishable from genuine
+dispersed support (§13#10). One finding is left open and red on purpose: the anti-bait depth
+signal is forgeable (§13#11), its fix in progress.
 
 ## Appendix D. Reference architecture for a fediverse deployment
 
