@@ -98,7 +98,10 @@ a floored invariant (every open-problem fix spends it).
 
 ## Results — Tier 1 (run)
 
-### E9 — hierarchical author×cluster prior: ✅ works on the intended case
+### E9 — hierarchical author×cluster prior: ✅ works on the intended case → **LANDED** (gated)
+*Landed as `config.hierarchical_prior` (`chord/model/priors.py`); end-to-end in the sim it
+raises delivered true value +28% and suppresses firehose reach. Default off (flipping it
+would re-tune the μ-calibrated sim suite). Test: `test_hierarchical_prior.py`.*
 - **CN (finding, not the court):** hierarchical prior *hurts* AUC (0.998→0.95) — CN's dense
   k-core notes are all well-tested, so a note's own ratings predict the label near-perfectly
   and the author prior only adds noise. CN has no *untested* content, so it can't show the
@@ -112,7 +115,11 @@ a floored invariant (every open-problem fix spends it).
   **Verdict:** the right fix for the §9 leniency gap; deterministic (reproducibility-safe).
   Next: wire author×cluster history into the loop and re-run the sim firehose end-to-end.
 
-### E2 — bias model + E-values on Coat's ε-slice: ✅ strong positive
+### E2 — bias model + E-values on Coat's ε-slice: ✅ strong positive → **LANDED** (gated)
+*Landed as `config.bias_calibration` (`chord/model/calibration.py`, cross-window per-cluster
+bias model). Clear win on Coat's dense MAR block; in the closed loop the effect is within
+seed noise at the ε floor — it *spends* ε and needs allocating (the meta-point). Deterministic
+mechanism unit-tested (`test_bias_calibration.py`); closed-loop benefit not asserted.*
 The MNAR→MAR bias is *structured* (corr with MNAR level +0.50), hence modelable. Fitting
 `g` on ε-covered items and applying it to **held-out** items (transportability) de-biases
 better than IPW: mean |error| **0.189** (bias-model) vs 0.236 (IPW) vs 0.254 (raw MNAR);

@@ -637,13 +637,23 @@ Honest residuals, several of which no fix fully removes:
    the $B_{\mathrm{LCB}}$ pessimism. What none of these touch is a hidden variable that drives
    *both* exposure and reaction but is absent from the model: no calibration, clipping, or
    doubly-robust wrapping removes confounding bias, because the estimand itself is
-   misidentified. The honest instrument here is not another variance damper but **sensitivity
-   analysis** — quantifying how much unobserved confounding would be required to overturn a
-   bridging verdict (e.g. Rosenbaum-style bounds or a confounding-strength parameter on
-   $\hat\pi$) — reported as a robustness interval on $B_{\mathrm{LCB}}$ rather than a point
-   claim. The exploration pool's randomized slice bounds this in the limit (randomized
-   exposure is unconfounded by construction), but only for the fraction of traffic it covers.
-   Named, bounded, not closed.
+   misidentified. But CHORD has an asset most systems lack: for every post that receives
+   ε-exposure it observes *both* confounded organic and unconfounded randomized reception on
+   the same content, so the gap is a direct estimate of the total bias — including the
+   unobserved part. So rather than only *bound* the confounding (Rosenbaum) we can **calibrate**
+   it (E2): fit a per-cluster bias model $r_{\text{exp}}\approx a_c+b_c\,r_{\text{org}}$ on the
+   paired ε-slice observations (accumulated across windows) and predict unconfounded reception
+   everywhere — proximal-causal in spirit, the ε-slice playing the negative-control exposure.
+   On Coat's dense random-exposure block this beats IPW at de-biasing held-out items ($|$err$|$
+   $0.19$ vs $0.24$) and *transports* to items with no ε-coverage. The honest caveat is the
+   converse of its strength: it **spends ε**, and at the bare exploration *floor* the paired
+   sample is too thin — in the closed-loop simulator the effect is within seed noise — so the
+   calibrator is gated (`bias_calibration`) and its benefit scales with how much randomized
+   traffic it is *allocated* (the portfolio point, #13). Where ε coverage is absent entirely,
+   report an **E-value** per crowning decision (the minimum confounding strength that would
+   overturn the verdict — one line on numbers already computed) and gate crowning on it. So
+   this moves from "named, bounded" toward "calibrated where ε reaches, E-value-gated where it
+   does not" — with residual bias only where the bias model itself fails to transport.
 3. **Bridging is non-monotone in audience.** $B_{\mathrm{LCB}}$ certifies bridging over the
    *exposed* set; a post bridging at 10K may divide at 10M. The confidence must widen as the
    target population outruns the tested set — this ties back to saturation windowing and
@@ -678,12 +688,18 @@ Honest residuals, several of which no fix fully removes:
    ($\sim0.96$) *and more* faithful (CN AUC $0.86\to0.9996$, Polis ARI $0.06\to0.61$). Residuals:
    against CN's intercept-thresholded label a naive mean is near-unbeatable by construction (so
    Polis, not CN, is the aggregator's court of appeal); the shrinkage is only as good as the
-   evidence weight $n_{cp}$; and the global-mean prior makes $B_{\mathrm{LCB}}$ **lenient on
-   untested one-sided content** (a firehose post regresses to neutral, not below) — deliberately,
-   since the author budget (§8) is what bounds total reach, but it means $B_{\mathrm{LCB}}$ alone
-   no longer suppresses a one-sided flood. The full reproducibility fix is the empirical means;
-   an over-ranked or convex (Soft-Impute) completion for the *personalization* embedding is a
-   noted, not-yet-shipped, further step.
+   evidence weight $n_{cp}$; and the global-mean prior makes $B_{\mathrm{LCB}}$ lenient on
+   *untested* one-sided content (a firehose post regresses to neutral, not below). That last gap
+   is now closed by a **hierarchical author×cluster prior** (E9): shrink each cluster's reception
+   toward the author's own decayed history *in that cluster* → the cluster mean → $\mu$, so an
+   untested post from an author cluster $c$ has consistently disliked regresses to that low prior
+   and $B_{\mathrm{LCB}}$ predicts-low *before* the budget bites, while a well-observed post
+   overwhelms the prior at the $n_{cp}/(n_{cp}+n_0)$ rate (self-correcting for reformed authors).
+   It is deterministic, so reproducibility is untouched; in the simulator, turning it on raises
+   delivered true value $\sim\!28\%$ and suppresses firehose reach relative to quality (gated on
+   `hierarchical_prior`, since flipping the default would re-tune the $\mu$-calibrated sim suite).
+   The full reproducibility fix is the empirical means; an over-ranked or convex (Soft-Impute)
+   completion for the *personalization* embedding is a noted, not-yet-shipped further step.
 10. **The camouflaged distributed ring — defended, with a residual** (§10, found *and fixed* in
     the simulator, App C.4). A ring that embeds puppets in *every* opinion cluster (by rating
     genuine content) and has them all boost one target fabricates cross-cluster support that
