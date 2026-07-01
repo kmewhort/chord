@@ -176,6 +176,22 @@ Note the deliberate asymmetry in how uncertainty is used: the exploration pool (
 uses uncertainty pessimistically to decide what to **crown**. Optimism explores; pessimism
 rewards. This is what prevents imperfect estimates from manufacturing false bridging.
 
+**A validation caveat, learned the hard way (Appendix C.5).** Benchmarked against X's
+Community Notes — the one deployed bridging system whose helpful/not decisions we can treat
+as ground truth — the *reconstructed* $B_{\mathrm{LCB}}$ did **not** beat the alternatives it
+is supposed to improve on: it trailed both the scalar $b_p$ and even a naive mean of signed
+helpfulness at recovering CN's `CURRENTLY_RATED_HELPFUL` status (AUC $0.93$ vs. $0.95$ vs.
+$0.9994$). The likely culprit is the pessimism term itself. With no per-cluster exposure
+counts to hand ($n_{cp}$ set uniformly), the $\min_c$-minus-penalty structure systematically
+demotes notes that happen to have been read by fewer clusters — a property only loosely
+correlated with genuine divisiveness — so the confidence bound subtracts noise rather than
+risk. The lesson is not that per-cluster reconstruction is wrong but that $B_{\mathrm{LCB}}$
+is only as good as the exposure model feeding $n_{cp}$: the penalty must be driven by
+*propensity-corrected* per-cluster exposure (§6), not by raw rating counts, and $\beta$ needs
+calibrating against a held-out helpfulness signal rather than assumed. Absent a reliable
+$n_{cp}$, the scalar $b_p$ pre-filter is the safer ranker — the inversion of the advice above,
+and a standing open problem (§13).
+
 ## 5. Rater weighting: quality-tracking, not variance
 
 Each observation in the fit is weighted by a per-rater influence $\lambda_u$, so that
@@ -212,6 +228,25 @@ floor ($\delta<1$) makes this a contraction with a unique fixed point, floors
 every rater's weight (no one is zeroed), and starves Sybils (fresh accounts have no
 incoming cross-divide trust). **Whichever estimator is used, weight by agreement with the
 bridged-quality signal after ideology is projected out — never by residual variance.**
+
+**Sybil starvation is weaker than it looks: a *ring* beats it (Appendix C.5).** Row
+normalization defeats the *one*-puppet attack, but it does not defeat a coordinated ring, and
+validation on real signed votes (Wikipedia RfA) makes this concrete. The teleport floor gives
+*every* account — puppets included — a baseline weight of $(1-\delta)/n$. A ring of $K$ fresh
+accounts that each cast exactly one approval, all of it aimed at one target author, hands that
+target $\delta\!\sum_i\lambda_{\text{puppet}_i}\approx \delta K(1-\delta)/n$ of transported
+mass: each puppet is row-stochastic so it forwards its *entire* unit to the target, while
+honest boosters split their unit across the many authors they genuinely approve. The puppets
+themselves stay starved (each keeps only floor mass — the property our unit tests check), but
+the *target* they point at is not. Empirically the target climbs from the $75$th percentile of
+real-editor influence at $K=5$ to the $100$th at $K=100$; influence grows without bound in ring
+size. In other words, teleport-floor eigentrust starves the sybils but lets their beneficiary
+*harvest their redirected baseline mass*. The remaining defense is entirely outside this
+iteration — the identity port's forge-cost (§11), which makes minting $K$ admissible identities
+expensive — so §5 should be read as Sybil-*resistant only in combination with* a costly-identity
+assumption, not self-sufficiently. Concrete hardenings (degree-aware down-weighting of
+single-target raters, a pre-trusted seed set à la TrustRank, capping any one author's incoming
+trust from low-$\lambda$ raters) are open work (§13).
 
 Two earned quantities feed off the same geometry:
 
@@ -453,9 +488,13 @@ subsystem.
 
 ## 10. Adversarial robustness
 
-- **Sybil / sockpuppets** — the visibility budget binds to identity, not accounts;
-  trust propagation gives fresh accounts ≈ zero weight. Sharding across accounts gains
-  nothing.
+- **Sybil / sockpuppets** — the visibility budget binds to identity, not accounts, and trust
+  propagation gives fresh accounts ≈ zero weight *as raters*. But this is not self-sufficient:
+  a ring of fresh accounts all approving one target lets that *target* harvest the puppets'
+  teleport-floor mass and reach top-percentile influence (§5, Appendix C.5). Sharding across
+  accounts gains nothing for the puppets but does gain influence for their beneficiary, so the
+  budget-binds-to-identity guarantee rests on the identity port's forge-cost (§11) — real
+  Sybil resistance requires costly identities, not the trust iteration alone.
 - **Brigading** — two independent defenses: a brigade of fresh accounts has no cross-divide
   trust path, and a brigade *creates* a split distribution that the divisiveness term and
   the $B_{\mathrm{LCB}}$ min-over-clusters penalize. Gaming lowers the score.
@@ -526,6 +565,21 @@ Honest residuals, several of which no fix fully removes:
    model-estimated satisfaction but not eliminated.
 7. **Distinguishing harmful from benign divides** ($A$'s weighting) is a normative,
    instance-level choice with no purely technical answer.
+8. **Sybil starvation does not survive a ring** (§5, validated in C.5). Row-stochastic
+   teleport-floor eigentrust starves individual puppets but lets the *target* of a coordinated
+   ring harvest their pooled baseline mass, reaching top-percentile influence as the ring grows.
+   The iteration is Sybil-resistant only *given* costly identities (the forge-cost port); making
+   the trust propagation itself ring-resistant — degree-aware down-weighting of single-target
+   raters, a pre-trusted seed set (TrustRank), per-author caps on incoming trust from low-$\lambda$
+   raters, or bounding each rater's marginal contribution — is open and, unlike the clique
+   problem, looks tractable.
+9. **The reconstructed $B_{\mathrm{LCB}}$ has not yet earned its complexity** (§4.2, validated
+   in C.5). On the one deployed bridging benchmark (Community Notes) it is beaten by both the
+   scalar $b_p$ and a naive helpfulness mean, because the $\min_c$ pessimism penalty is driven by
+   raw per-cluster rating counts rather than propensity-corrected exposure $n_{cp}$. Until
+   $n_{cp}$ comes from a real exposure model (§6) and $\beta$ is calibrated against a held-out
+   signal, the cheap scalar is the safer ranker — an inversion of §4.2's advice that the design
+   owes an answer to.
 
 *Directions considered and declined.* Several defensive add-ons were evaluated and left out
 deliberately, on the principle that each addition should strengthen an existing mechanism or
@@ -615,7 +669,7 @@ ground truth is known.
 | Rater weighting (§5): quality-tracking $\lambda$ | manipulation resistance, extremist-amplification check | **Community Notes** | Reproduce the QSMF inverse-variance pathology and the correction directly. |
 | Real deliberation / clusters | per-cluster reconstruction on genuine divides | **Polis** open conversation data | Small; participant×comment agree/disagree/pass with validated clusters. |
 | Scale + real divides + authors + time | author budget, scout precision, ranking realism | **Reddit** (Academic Torrents dumps) | Votes not per-user; build $x_u$ from community co-participation (Waller–Anderson). |
-| Propensity / MNAR (§6) | IPS / doubly-robust recovery | **Yahoo!R3, Coat, KuaiRec/KuaiRand** | The only datasets with a randomly-exposed (MAR) holdout = the unconfounded anchor. KuaiRand adds timestamps/features. |
+| Propensity / MNAR (§6) | IPS / doubly-robust recovery | **Yahoo!R3, Coat, KuaiRec/KuaiRand** | The only datasets with a randomly-exposed (MAR) holdout = the unconfounded anchor. KuaiRand adds timestamps/features. **A true MAR block is essential, not a convenience** — see C.3: on Coat's real random-exposure test set IPW recovers the ranking, but running the same harness on a MovieLens slice (organically MNAR, no MAR block) it does *not*, because the "holdout" inherits the base selection bias. |
 | Exploration / bandit (§8) | Thompson audition, base-rate prior | **Open Bandit Dataset**, KuaiRand | Logged uniform-random **and** Thompson-sampling policies. |
 | Trust / credibility propagation (§5) | eigentrust $\lambda$ on signed votes | **Wikipedia RfA**, Epinions/Slashdot signed nets (SNAP) | Rare per-user *signed* votes. |
 | Temporal / author / scout only | budgets, early-signal backtest, ranking sandbox | **Hacker News**, StackExchange | No per-user votes → cannot do the keystone; use aggregate score as $\Phi_\infty$ and early *commenters* as a scout proxy. |
@@ -654,6 +708,20 @@ Metrics: unbiased NDCG@k / AUC against the MAR holdout (the standard for Yahoo!R
 the pathology diagnostics on $b_p$ and $\lVert y_p\rVert$, plus an extremist-amplification
 curve for $\lambda$ (reputation vs. ideological extremity, per QSMF Figure 1).
 
+**The base matrix in step 1 must be genuinely MAR (or near-complete) — this is a correctness
+condition, not a convenience, and it is easy to get wrong (Appendix C.5).** The harness scores
+step 5 against a "hidden full matrix" taken as ground truth; if that matrix is itself the
+product of organic self-selection (as with a MovieLens or MovieLens-style slice, where people
+rate what they chose to watch), then the held-out cells carry the *same* unmodelled selection
+bias as the training cells. Correcting only the *injected* logging policy $\pi^{\text{log}}$
+then adds inverse-propensity variance without removing the pre-existing confound, and IPW can
+match or *underperform* the uncorrected fit — not because the correction is wrong but because
+the ground truth is contaminated. Empirically this is exactly what happens: on **Coat**, whose
+test block is a real uniformly-random exposure, IPW improves the unbiased ranking; run the
+identical harness on a dense **MovieLens** slice and it does not. Use the semi-synthetic recipe
+only on a dataset with a true random-exposure block (Coat, Yahoo!R3, KuaiRand) or a near-fully-
+observed matrix; treat any organically-sparse matrix as a negative control, not a validation.
+
 ### C.4 What requires a simulator (not retroactive)
 
 The feedback loop is untestable on fixed data. To exercise §9 you need an agent-based
@@ -666,6 +734,35 @@ the sensitivity knobs; the effective-rater-count / Gini controller (§9.3) holdi
 concentration bounded; and whether exploration at rate $\epsilon$ sustains the identifiability
 anchor over time. This is where the performative-prediction and two-timescale results become
 empirical rather than assumed.
+
+### C.5 Results of the reference validation suite
+
+The reference implementation ships an opt-in suite (`validate/`) that runs the static-component
+checks above against real public data — Coat, Polis, MovieLens-100K, Wikipedia RfA (SNAP), and
+a dense k-core slice of X Community Notes — with datasets committed via Git LFS. It is built to
+*surface* failures rather than confirm the design: claims that hold are assertions; claims that
+fail are recorded as documented findings, not tuned away. The first run is summarized here
+(indicative numbers, $d=2$, averaged over seeds); several claims held and three did not.
+
+**Held.** (i) On Coat's real MAR holdout, IPW correction improves the unbiased ranking (NDCG@5
+$0.714\!\to\!0.718$, AUC $0.657\!\to\!0.663$) — modest but in the predicted direction (§6). (ii)
+On Polis, $B_{\mathrm{LCB}}$ tracks genuine cross-group support well (Spearman $\approx 0.71$
+against the minimum-across-groups mean vote), and the random-$\epsilon$ anchor demonstrably buys
+identifiability (unbiased NDCG falls monotonically as the anchor $\to 0$, §6.2). (iii) The §5
+influence distribution is concentrated, not uniform ($N_{\text{eff}}/n\approx 0.4$ on RfA).
+
+**Findings — claims that did not survive real data.** (F1, §5) Teleport-floor eigentrust
+starves individual sybils but *not a ring*: a $K$-account ring pointing at one target lifts that
+target from the $75$th percentile of real-editor influence at $K=5$ to the $100$th at $K=100$
+(the ring-harvesting analysis in §5). (F2, §4.2) On Community Notes, reconstructed
+$B_{\mathrm{LCB}}$ (AUC $0.93$ vs. `CURRENTLY_RATED_HELPFUL`) is beaten by both the scalar $b_p$
+($0.95$) and a naive mean of signed helpfulness ($0.9994$) — the pessimism penalty subtracts
+noise when $n_{cp}$ is not a real exposure count. (F3, §6/C.3) The semi-synthetic IPW harness
+recovers the ranking on Coat but fails on an organically-MNAR MovieLens slice, because that
+slice has no true MAR block. Two weaker signals: Polis cluster reconstruction is strong on some
+conversations (vTaiwan ARI $0.59$) and near-chance on others (football-concussions $0.04$), and
+divisiveness $D(p)$ tracks group spread except on very low-conflict conversations. F1 and F2 are
+the two the design most needs to answer; both are taken up as open problems in §13.
 
 ## Appendix D. Reference architecture for a fediverse deployment
 

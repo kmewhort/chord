@@ -28,16 +28,24 @@ command -v pandoc >/dev/null 2>&1 || {
   echo "error: pandoc not found on PATH. See https://pandoc.org/installing.html" >&2
   exit 1
 }
-command -v xelatex >/dev/null 2>&1 || {
-  echo "error: xelatex not found on PATH. Install TinyTeX (https://yihui.org/tinytex/)" >&2
-  echo "       or a texlive distribution that provides xelatex." >&2
+# Prefer a system xelatex; fall back to tectonic (a self-contained XeTeX engine,
+# `brew install tectonic` / `cargo install tectonic`) which also handles the
+# fontspec + fvextra preamble and pulls TeX packages on demand. Both are XeTeX so
+# the header.tex font/unicode setup renders identically.
+if command -v xelatex >/dev/null 2>&1; then
+  PDF_ENGINE=xelatex
+elif command -v tectonic >/dev/null 2>&1; then
+  PDF_ENGINE=tectonic
+else
+  echo "error: no XeTeX engine on PATH. Install TinyTeX (https://yihui.org/tinytex/)," >&2
+  echo "       a texlive distribution providing xelatex, or tectonic (brew install tectonic)." >&2
   exit 1
-}
+fi
 
-echo "Rendering $SRC -> $OUT ..."
+echo "Rendering $SRC -> $OUT (engine: $PDF_ENGINE) ..."
 pandoc "$SRC" \
   --output="$OUT" \
-  --pdf-engine=xelatex \
+  --pdf-engine="$PDF_ENGINE" \
   --from=markdown+tex_math_dollars+pipe_tables+backtick_code_blocks \
   --toc --toc-depth=2 \
   --include-in-header=header.tex \
