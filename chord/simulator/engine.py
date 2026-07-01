@@ -24,7 +24,7 @@ from ..config import ChordConfig, UserKnobs
 from ..types import DEFAULT_REACTION_VALUES, Exposure, ExposureSource, Post, Reaction, ReactionKind
 from .content import AuthorAgent, make_authors, reset_truth, true_post
 from .metrics import Welfare, embedding_recovery, mean_or_nan
-from .population import Population, make_bipolar_population
+from .population import Agent, Population, make_bipolar_population
 from .rankers import (
     ChordRanker, ChronologicalRanker, EngagementRanker, OracleRanker, RandomRanker, Ranker,
 )
@@ -110,6 +110,8 @@ class Simulator:
         performativity: float = 0.0,
         sybil_ring_size: int = 0,
         ring_target_quality: float = 0.4,
+        ring_mode: str = "naive",
+        ring_camouflage: int = 4,
     ):
         # small per-author budget so the conserved-budget mechanism (§8) binds.
         self.config = config or ChordConfig(
@@ -126,6 +128,8 @@ class Simulator:
         self.performativity = performativity
         self.sybil_ring_size = sybil_ring_size
         self.ring_target_quality = ring_target_quality
+        self.ring_mode = ring_mode              # "naive" | "distributed" (camouflaged)
+        self.ring_camouflage = ring_camouflage  # camouflage reactions per sybil per window
 
     # ---------------------------------------------------------------- world
     def _fresh_world(self):
@@ -147,8 +151,23 @@ class Simulator:
                                  toxicity=0.1, quality=self.ring_target_quality,
                                  label="ring_target")
             authors = authors + [target]
-            ring = {"target_id": 2000,
-                    "sybil_ids": [90000 + i for i in range(self.sybil_ring_size)]}
+            sybil_ids = [90000 + i for i in range(self.sybil_ring_size)]
+            ring = {"target_id": 2000, "sybil_ids": sybil_ids, "sybil_agents": {}}
+            if self.ring_mode == "distributed":
+                # Camouflaged ring: each puppet borrows a genuine agent's opinion so
+                # the MF places it inside a *real* cluster; the ring spreads its
+                # puppets evenly across clusters, then all boost the target — faking
+                # cross-cluster support to beat B_LCB's min-over-clusters.
+                by_cluster = defaultdict(list)
+                for a in pop.agents:
+                    by_cluster[a.cluster].append(a)
+                clusters = sorted(by_cluster)
+                for i, sid in enumerate(sybil_ids):
+                    c = clusters[i % len(clusters)]
+                    host = by_cluster[c][i % len(by_cluster[c])]
+                    ring["sybil_agents"][sid] = Agent(
+                        id=sid, opinion=host.opinion.copy(),
+                        reactivity=1.0, selectivity=1.5, cluster=c)
         reset_truth()
         return pop, authors, ring
 
@@ -246,7 +265,28 @@ class Simulator:
             target_new = []
             if ring is not None:
                 target_new = [p for p in new_posts if p.author_id == ring["target_id"]]
+                sybil_agents = ring.get("sybil_agents", {})
                 for spid in ring["sybil_ids"]:
+                    # Distributed ring: camouflage by rating genuine content like the
+                    # cluster the puppet is hiding in, so the MF places it there.
+                    sa = sybil_agents.get(spid)
+                    if sa is not None and self.ring_camouflage > 0:
+                        pool = [p for p in live_posts if p.author_id != ring["target_id"]]
+                        if pool:
+                            idx = react_rng.choice(len(pool),
+                                                   size=min(self.ring_camouflage, len(pool)),
+                                                   replace=False)
+                            for j in np.atleast_1d(idx):
+                                cp = pool[int(j)]
+                                ct = true_post(cp.id)
+                                if ct is None:
+                                    continue
+                                kind = react(sa, ct, react_rng)
+                                exposures.append(Exposure(spid, cp.id, timestamp=float(w),
+                                                          source=ExposureSource.ORGANIC, propensity=0.5))
+                                if kind is not None:
+                                    reactions.append(self._reaction(spid, cp.id, kind, w, react_rng))
+                    # the attack itself: boost the target's posts
                     for tp in target_new:
                         exposures.append(Exposure(spid, tp.id, timestamp=float(w),
                                                   source=ExposureSource.ORGANIC, propensity=0.5))
