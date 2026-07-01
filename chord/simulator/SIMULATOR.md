@@ -82,9 +82,20 @@ weaknesses; each was then chased down (tests in `tests/test_simulator_*`):
    equals genuine broad content's — reception can't see quality) and needs more
    exploration traffic than the small default ε floor to bind. Paired with the
    loyalty penalty it contains the ring even at higher ε (`test_simulator_anchor.py`).
-   *Still unbuilt:* **spectral spike-removal** — deflate the rank-1 boost block from
-   the MF residual before re-fitting the intercepts (detection *strengthens* with K,
-   σ_spike ∝ √K). RPCA is the wrong tool (the rank-1 boost lands in the low-rank part).
+   *Spectral spike-removal — implemented, and found fundamentally limited (honest
+   negative result).* The rank-1 boost block IS detectable in the MF residual (keeping
+   `b_p`/`b_a` in, since that is where the boost is absorbed), and with no ring it even
+   cleans up noise. But **per-window, by reaction pattern alone, a coordinated ring is
+   indistinguishable from genuine cross-cluster consensus** — both are rank-1 blocks
+   (many cross-cluster users like one author), and a genuinely-loved author's block is
+   *larger* than the ring's, so deflation suppresses the legitimate bridging content
+   *more* than the attack (the opposite of the goal). It was reverted. The robust
+   discriminator must be **temporal** (do the supporters co-occur *only* on this
+   target, over time?) — exactly what the loyalty defense uses — or out-of-band
+   (identity/provenance); the research's COCM thread reached the same impossibility
+   ("from scrubbed side-info the ring is statistically identical to K independent
+   fans"). RPCA is doubly wrong (the rank-1 boost lands in its low-rank part and is
+   *absorbed*).
 3. **Bridging↔satisfaction tradeoff — characterized** (see `test_simulator_frontier.py`).
 
 ## Layout

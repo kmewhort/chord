@@ -652,11 +652,16 @@ Honest residuals, several of which no fix fully removes:
     delivered true value) and removes the ring's common-mode lift $K$-independently, but cannot
     *alone* push a ring below parity (a near-origin target's true reception equals genuine broad
     content's) and needs more randomized traffic than the floor provides — so it is paired with
-    the loyalty penalty rather than used alone. The **residual** left unbuilt is *spectral
-    spike-removal* (deflate the rank-1 boost block from the residual before re-fitting the
-    intercepts — detection that *strengthens* with ring size, $\sigma_{\text{spike}}\propto
-    \sqrt K$); RPCA is the wrong tool (the rank-1 boost lands in the low-rank part). Timing/
-    provenance and costly identity remain the ultimate backstops.
+    the loyalty penalty rather than used alone. *Spectral spike-removal* — deflating the
+    rank-1 boost block from the residual — was also implemented and yielded an instructive
+    **negative** result: per window, by reaction pattern alone, a coordinated ring is
+    *indistinguishable from genuine cross-cluster consensus* (both are rank-1 residual blocks,
+    and a genuinely-loved author's is the *larger*), so deflation suppresses the very bridging
+    content the system exists to reward. The robust discriminator is therefore necessarily
+    **temporal** (the loyalty signal — do the same accounts co-occur only on this target over
+    time?) or out-of-band (identity/provenance); RPCA is doubly wrong (the boost lands in its
+    low-rank part and is absorbed). Timing/provenance and costly identity remain the ultimate
+    backstops, and this is the collusion analogue of the high-precision clique (#5).
 
 *Directions considered and declined.* Several defensive add-ons were evaluated and left out
 deliberately, on the principle that each addition should strengthen an existing mechanism or
