@@ -1,0 +1,134 @@
+"""Configuration and the knob panel (§12).
+
+Two kinds of parameter live here:
+
+* **Consumption knobs** — ``M``, ``rho``, ``theta``, ``epsilon`` — freely set by
+  a user; they only change the chooser's own feed and are therefore ungameable
+  (§7.1). Represented by :class:`UserKnobs`.
+* **System / estimator config** — MF dimension, regularization, LCB ``beta``,
+  eigentrust teleport ``delta``, budget ``B0``/``eta``, recycling ``zeta``, the
+  IPW clip, the exploration floor. Represented by :class:`ChordConfig`.
+
+Earned authority (``lambda_u``, ``q_scout``, ``B(a)``) is *never* user-set — the
+consumption-vs-authority wall (§12) is enforced structurally by simply not
+exposing those on :class:`UserKnobs`.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Dict
+
+
+@dataclass
+class UserKnobs:
+    """Per-user consumption knobs (the free rows of the §12 table)."""
+
+    # M in [0,1]: bridging vs personalization master dial (§7.1).
+    #   M=0 -> engagement-like (my side's content, divisiveness included)
+    #   M=1 -> pure bridging (broad tested support only; divisiveness penalized)
+    M: float = 0.7
+    # rho in [0,1]: which divides to bridge; scales the divide-weighting A (§7.1).
+    rho: float = 1.0
+    # Per-factor consumption weights on the simplex (§7.3). Missing factors -> 0.
+    theta: Dict[str, float] = field(default_factory=lambda: {"bridge": 1.0})
+    # Exploration appetite, floored by the system (§8, §12).
+    epsilon: float = 0.1
+
+    def validate(self) -> None:
+        if not 0.0 <= self.M <= 1.0:
+            raise ValueError(f"M must be in [0,1], got {self.M}")
+        if not 0.0 <= self.rho <= 1.0:
+            raise ValueError(f"rho must be in [0,1], got {self.rho}")
+        if self.epsilon < 0.0:
+            raise ValueError(f"epsilon must be >= 0, got {self.epsilon}")
+        if self.theta:
+            s = sum(self.theta.values())
+            if s <= 0:
+                raise ValueError("theta weights must sum to a positive value")
+            if any(v < 0 for v in self.theta.values()):
+                raise ValueError("theta weights must be non-negative")
+
+    def normalized_theta(self) -> Dict[str, float]:
+        """theta projected onto the simplex (sums to 1)."""
+        if not self.theta:
+            return {"bridge": 1.0}
+        s = sum(self.theta.values())
+        return {k: v / s for k, v in self.theta.items()}
+
+
+@dataclass
+class ChordConfig:
+    """System-level configuration for the estimator and mechanisms."""
+
+    # --- Signed reaction scaling (§4.1) ---
+    # Magnitude c of the exposed-no-reaction weak negative, 0<c<1.
+    exposed_no_reaction_c: float = 0.1
+
+    # --- Matrix factorization (§4.1, §9.1) ---
+    d: int = 8  # opinion-space dimension (bias-variance knob, §13.4)
+    mf_iters: int = 20  # ALS sweeps
+    reg_embedding: float = 0.05  # L2 on x_u, y_p
+    reg_bias_user: float = 0.1  # ridge / partial-pool on b_u
+    reg_bias_post: float = 0.1  # tau_p^-2 partial pooling on b_p
+    reg_bias_author: float = 0.05  # tau_a^-2 partial pooling on b_a
+    mf_tol: float = 1e-5  # early-stop tolerance on weighted RMSE
+
+    # --- Bridging / LCB (§4.2) ---
+    lcb_beta: float = 1.0  # pessimism multiplier on the confidence penalty
+    lcb_sigma: float = 1.0  # residual noise scale sigma
+    n_clusters: int = 2  # default Partition adapter cluster count
+
+    # --- Divisiveness A (§4.1) ---
+    # Weight of the affective-polarization-correlated axes when building A. With
+    # affective_weighting=False, A=I (the glib default of §4.1).
+    affective_weighting: bool = True
+
+    # --- Rater weighting / eigentrust (§5) ---
+    eigentrust_delta: float = 0.85  # teleport (1-delta is the floor)
+    eigentrust_iters: int = 50
+    eigentrust_tol: float = 1e-8
+    quality_track_mix: float = 0.5  # blend eigentrust with quality-agreement weight
+
+    # --- Scout precision (§5) ---
+    scout_alpha: float = 0.5  # rank-decay in q_scout
+
+    # --- Influence recycling (§8) ---
+    recycling_zeta: float = 0.3  # boost the under-served, damp the satisfied
+
+    # --- Propensity / IPW (§6) ---
+    W_max: float = 20.0  # inverse-propensity clip; tie to 1/epsilon (§6.2)
+    self_normalized: bool = True  # use SNIPW (§6.2)
+
+    # --- Author visibility budget (§8) ---
+    budget_B0: float = 10.0  # base per-window budget
+    budget_eta: float = 1.0  # strength-replenishment rate
+    budget_max: float = 100.0  # ceiling to keep budgets bounded
+
+    # --- Exploration pool (§8) ---
+    epsilon_min: float = 0.05  # floored system invariant (§9.3)
+    epsilon_max: float = 0.5
+    exploration_saturation_var: float = 0.05  # close audition below this variance
+    newcomer_base_rate: float = 0.1  # empirical newcomer "winner" rate (§8 prior)
+
+    # --- Concentration controller (§9.3) ---
+    gini_ceiling: float = 0.6  # if Gini(lambda) exceeds -> tighten
+    controller_delta_step: float = 0.02  # raise teleport floor
+    controller_epsilon_step: float = 0.01  # raise epsilon_min
+
+    def validate(self) -> None:
+        if self.d < 1:
+            raise ValueError("d must be >= 1")
+        if not 0.0 < self.eigentrust_delta < 1.0:
+            raise ValueError("eigentrust_delta must be in (0,1) for a contraction")
+        if not 0.0 < self.exposed_no_reaction_c < 1.0:
+            raise ValueError("exposed_no_reaction_c must be in (0,1)")
+        if self.epsilon_min <= 0.0:
+            raise ValueError("epsilon_min must be > 0 (identifiability anchor, §6.2)")
+        if self.epsilon_min > self.epsilon_max:
+            raise ValueError("epsilon_min must be <= epsilon_max")
+        if self.W_max <= 1.0:
+            raise ValueError("W_max must be > 1")
+
+    def clamp_epsilon(self, eps: float) -> float:
+        """Clamp a user's exploration appetite to [epsilon_min, epsilon_max]."""
+        return float(min(self.epsilon_max, max(self.epsilon_min, eps)))
