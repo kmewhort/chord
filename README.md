@@ -20,13 +20,14 @@ interaction, not attention at any cost.
 ---
 
 This repository is a reference Python implementation of the CHORD whitepaper
-([`strength-ranked-attention-whitepaper-2.md`](strength-ranked-attention-whitepaper-2.md)) —
-the full valuation-and-allocation layer, plus a closed-loop simulator and an
-evaluation harness. On top of the bridging core it layers three attention-economy
-mechanisms: quality-weighted raters (a discriminating reaction counts more than a
-reflexive one), a conserved author visibility budget (posting more dilutes rather
-than multiplies reach), and a commons-funded exploration pool (unproven newcomers
-get a fair audition).
+([`whitepaper/CHORD-whitepaper.md`](whitepaper/CHORD-whitepaper.md), with a
+typeset [PDF](whitepaper/CHORD-whitepaper.pdf) and a `whitepaper/compile.sh`
+build script) — the full valuation-and-allocation layer, plus a closed-loop
+simulator and an evaluation harness. On top of the bridging core it layers three
+attention-economy mechanisms: quality-weighted raters (a discriminating reaction
+counts more than a reflexive one), a conserved author visibility budget (posting
+more dilutes rather than multiplies reach), and a commons-funded exploration pool
+(unproven newcomers get a fair audition).
 
 The one-line architecture (whitepaper Appendix B):
 

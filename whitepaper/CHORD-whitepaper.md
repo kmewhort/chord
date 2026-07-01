@@ -1,10 +1,8 @@
-# CHORD
-
-### Cross-cluster Harmonized Optimization of Reception and Dissonance
-
-*A bridging, attention-economy feed-ranking algorithm for federated social networks —
-working draft*
-
+---
+title: "CHORD"
+subtitle: "Cross-cluster Harmonized Optimization of Reception and Dissonance"
+author: "A bridging, attention-economy feed-ranking algorithm for federated social networks"
+date: "Working draft"
 ---
 
 ## Abstract

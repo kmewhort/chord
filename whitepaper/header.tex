@@ -1,0 +1,62 @@
+% Extra LaTeX preamble for the CHORD whitepaper PDF build (pandoc + xelatex).
+% Keeps the wide ASCII architecture diagram (Appendix D.1) inside the margins and
+% gives verbatim/code blocks a compact, wrap-tolerant setting.
+\usepackage{graphicx}  % provides \resizebox (used to fit the wide ASCII diagram)
+\newsavebox{\diagbox}  % holds a wide code block so \resizebox can scale it (see fit-codeblocks.lua)
+\usepackage{fvextra}
+\fvset{fontsize=\footnotesize,breaklines=true,breakanywhere=true,commandchars=\\\{\}}
+
+% Use a monospace font that includes Unicode box-drawing glyphs (─ │ ┌ ┘ …) so the
+% ASCII architecture diagram in Appendix D.1 renders instead of dropping characters.
+% DejaVu Sans Mono is a widely-available system font; falls back gracefully if the
+% build host lacks it (xelatex will warn and use the default mono).
+\usepackage{ifthen}
+\IfFontExistsTF{DejaVu Sans Mono}{%
+  \setmonofont{DejaVu Sans Mono}[Scale=0.85]%
+}{}
+
+% The paper uses Greek letters, arrows, and math operators *literally* in prose
+% (e.g. "M/rho/theta/epsilon", "the lambda<->x coupling"). Latin Modern Roman has
+% no Greek/arrow glyphs in text mode, so map each to its math form. These mappings
+% are inert inside the fancyvrb code block (verbatim resets catcodes), so the ASCII
+% architecture diagram still renders through the mono font.
+\usepackage{newunicodechar}
+\newunicodechar{α}{\ensuremath{\alpha}}
+\newunicodechar{β}{\ensuremath{\beta}}
+\newunicodechar{γ}{\ensuremath{\gamma}}
+\newunicodechar{δ}{\ensuremath{\delta}}
+\newunicodechar{ε}{\ensuremath{\epsilon}}
+\newunicodechar{ζ}{\ensuremath{\zeta}}
+\newunicodechar{η}{\ensuremath{\eta}}
+\newunicodechar{θ}{\ensuremath{\theta}}
+\newunicodechar{κ}{\ensuremath{\kappa}}
+\newunicodechar{λ}{\ensuremath{\lambda}}
+\newunicodechar{μ}{\ensuremath{\mu}}
+\newunicodechar{ν}{\ensuremath{\nu}}
+\newunicodechar{π}{\ensuremath{\pi}}
+\newunicodechar{ρ}{\ensuremath{\rho}}
+\newunicodechar{σ}{\ensuremath{\sigma}}
+\newunicodechar{τ}{\ensuremath{\tau}}
+\newunicodechar{φ}{\ensuremath{\varphi}}
+\newunicodechar{ψ}{\ensuremath{\psi}}
+\newunicodechar{ω}{\ensuremath{\omega}}
+\newunicodechar{Φ}{\ensuremath{\Phi}}
+\newunicodechar{Δ}{\ensuremath{\Delta}}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{↔}{\ensuremath{\leftrightarrow}}
+\newunicodechar{≈}{\ensuremath{\approx}}
+\newunicodechar{×}{\ensuremath{\times}}
+\newunicodechar{…}{\ldots}
+\newunicodechar{²}{\textsuperscript{2}}
+\newunicodechar{⁴}{\textsuperscript{4}}
+
+% Tables from Markdown can run wide; let them shrink rather than overflow.
+\usepackage{longtable,booktabs,array}
+
+% A little more breathing room around display math and headings.
+\usepackage{setspace}
+\setstretch{1.05}
+
+% Don't let long URLs/inline code punch into the margin.
+\usepackage[hyphens]{url}
+\emergencystretch=2em
