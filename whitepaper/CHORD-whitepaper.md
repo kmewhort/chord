@@ -26,7 +26,13 @@ factored into ports so it can run standalone on a single Mastodon instance or do
 richer host. We ground the estimator's stability in performative-prediction and
 two-timescale stochastic-approximation theory, correct a rater-weighting pathology
 identified in deployed bridging systems, and are explicit about what remains genuinely
-open — chiefly the propensity model on which identifiability rests.
+open — chiefly the propensity model on which identifiability rests. A reference
+implementation is checked against real public datasets (Appendix C) and exercised in a
+counterfactual agent-based simulator (Appendix C.4); this find-it-then-fix-it loop drove
+several corrections that are folded into the sections below — an exposure-weighted
+shrinkage keystone, an outgoing-diversity trust weight and a cluster-spread-gated
+collusion defense, an anti-bait depth gate, and a bridging-vs-personalization operating
+point that is interior rather than at the pure-bridging extreme.
 
 ---
 
