@@ -1,31 +1,34 @@
 """The closed-loop simulator (Appendix C.4) — the only way to exercise §9.
 
 The feedback loop is untestable on fixed data (a static archive cannot respond to
-the ranker's own allocations). This engine runs the full loop:
+the ranker's own allocations). This engine runs the full loop
 
     rank -> simulated reactions -> retrain
 
-over an adapting population and adapting author-agents, and measures the §9
-targets: convergence to a performatively stable point vs oscillation; the
-effective-rater-count / Gini controller holding concentration bounded; and whether
-exploration at rate epsilon sustains the identifiability anchor over time.
+over an adapting population and adapting author-agents, for a *pluggable ranker*
+(:mod:`chord.simulator.rankers`), and measures both the §9 dynamics (concentration,
+exploration anchor, performative stability) and — because the world is synthetic —
+the **ground-truth welfare** each ranker actually delivers (:mod:`chord.simulator.metrics`).
+Running several rankers on the same seeded world is the counterfactual that answers
+"does bridging beat engagement?".
 """
 from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 
 from ..config import ChordConfig, UserKnobs
-from ..loop import Chord
-from ..monitor import effective_rater_count, gini
-from ..propensity import LoggedPropensityModel
-from ..types import Exposure, ExposureSource, Post, Reaction, ReactionKind
-from .content import AuthorAgent, make_authors, reset_truth, true_loading
+from ..types import DEFAULT_REACTION_VALUES, Exposure, ExposureSource, Post, Reaction, ReactionKind
+from .content import AuthorAgent, make_authors, reset_truth, true_post
+from .metrics import Welfare, embedding_recovery, mean_or_nan
 from .population import Population, make_bipolar_population
-from .response import react
+from .rankers import (
+    ChordRanker, ChronologicalRanker, EngagementRanker, OracleRanker, RandomRanker, Ranker,
+)
+from .response import expected_approval, react
 
 
 @dataclass
@@ -33,30 +36,56 @@ class WindowMetrics:
     window: int
     n_posts: int
     n_reactions: int
+    exploration_rate: float
+    # CHORD-only diagnostics (nan/0 for other rankers)
     gini_lambda: float
     n_eff: float
-    exploration_rate: float
     mean_bridge_score: float
-    firehose_reach_per_post: float
-    universal_reach_per_post: float
-    score_drift: float  # performative stability signal (change in feed scores)
+    # ground-truth welfare of what was shown, per impression
+    true_value: float          # quality × bridged reception delivered
+    toxicity: float            # affective-polarization exposure
+    divisiveness: float        # realized cross-cluster spread of shown posts
+    satisfaction: float        # viewer's expected approval of shown posts
+    recovery: float            # estimator's recovery of the true opinion geometry
+    feed_churn: float          # performative stability (1 - Jaccard vs last window)
+    reach_by_label: Dict[str, float] = field(default_factory=dict)
+
+    # back-compat alias
+    @property
+    def firehose_reach_per_post(self) -> float:
+        return self.reach_by_label.get("firehose", 0.0)
+
+    @property
+    def universal_reach_per_post(self) -> float:
+        return self.reach_by_label.get("universal", 0.0)
+
+    @property
+    def score_drift(self) -> float:
+        return self.feed_churn
 
 
 @dataclass
 class SimulationResult:
     metrics: List[WindowMetrics] = field(default_factory=list)
 
-    def score_drifts(self) -> List[float]:
-        return [m.score_drift for m in self.metrics]
+    def tail(self, key: str, n: int = 4) -> float:
+        return mean_or_nan(getattr(m, key) for m in self.metrics[-n:])
 
-    def is_stable(self, tail: int = 3, tol: float = 0.15) -> bool:
-        """Heuristic: the feed-score drift has settled in the last ``tail`` windows."""
-        drifts = [m.score_drift for m in self.metrics[-tail:]]
-        return len(drifts) > 0 and max(drifts) < tol
+    def series(self, key: str) -> List[float]:
+        return [getattr(m, key) for m in self.metrics]
+
+    def is_stable(self, tail: int = 3, tol: float = 0.5) -> bool:
+        churn = [m.feed_churn for m in self.metrics[-tail:]]
+        return len(churn) > 0 and max(churn) < tol
 
 
 class Simulator:
-    """Agent-based closed-loop simulator for CHORD (Appendix C.4)."""
+    """Agent-based closed-loop simulator for CHORD (Appendix C.4).
+
+    One ``Simulator`` holds the *world spec*; ``run(ranker)`` executes one full
+    closed loop for a ranker (rebuilding a fresh, identically-seeded world each
+    call), and ``compare(...)`` runs several rankers on that same world.
+    """
 
     def __init__(
         self,
@@ -66,157 +95,171 @@ class Simulator:
         knobs: Optional[UserKnobs] = None,
         n_slots: int = 6,
         seed: int = 0,
+        d_true: Optional[int] = None,
+        adaptive_authors: bool = True,
+        include_toxic_and_bait: bool = True,
     ):
-        # Default sim config uses a small per-author budget so the conserved-
-        # budget mechanism (§8) actually binds within a feed and firehose
-        # dilution is observable.
+        # small per-author budget so the conserved-budget mechanism (§8) binds.
         self.config = config or ChordConfig(
             d=d, n_clusters=2, mf_iters=25, budget_B0=2.0, budget_max=6.0
         )
         self.d = d
+        self.d_true = d_true if d_true is not None else d + 1  # one hidden axis by default
+        self.n_users = n_users
         self.n_slots = n_slots
         self.knobs = knobs or UserKnobs(M=1.0)
         self.seed = seed
-        self._rng = np.random.default_rng(seed)
-        self.population: Population = make_bipolar_population(n_users, d=d, seed=seed)
-        self.authors: List[AuthorAgent] = make_authors(d=d, seed=seed)
-        reset_truth()
-        self.chord = Chord(
-            self.config,
-            propensity_model=LoggedPropensityModel(self.config.epsilon_min),
-            seed=seed,
-        )
-        self._prev_scores: Dict[int, float] = {}
+        self.adaptive_authors = adaptive_authors
+        self.include_toxic_and_bait = include_toxic_and_bait
 
-    def run(self, n_windows: int = 8) -> SimulationResult:
+    # ---------------------------------------------------------------- world
+    def _fresh_world(self):
+        pop = make_bipolar_population(self.n_users, d=self.d, seed=self.seed,
+                                      d_true=self.d_true)
+        authors = make_authors(d=self.d, seed=self.seed, d_true=self.d_true,
+                               include_toxic_and_bait=self.include_toxic_and_bait)
+        if not self.adaptive_authors:
+            for a in authors:
+                a.adaptivity = 0.0
+        reset_truth()
+        return pop, authors
+
+    def make_ranker(self, spec: Union[str, Ranker], population: Population) -> Ranker:
+        if isinstance(spec, Ranker):
+            return spec
+        name = spec
+        if name == "chord":
+            return ChordRanker(self.config, self.knobs, seed=self.seed)
+        if name == "engagement":
+            return EngagementRanker(self.config, seed=self.seed)
+        if name == "chronological":
+            return ChronologicalRanker()
+        if name == "random":
+            return RandomRanker(seed=self.seed)
+        if name == "oracle":
+            return OracleRanker(Welfare(population), true_post)
+        raise ValueError(f"unknown ranker {name!r}")
+
+    # ------------------------------------------------------------------ run
+    def run(self, ranker: Union[str, Ranker] = "chord", n_windows: int = 8) -> SimulationResult:
+        population, authors = self._fresh_world()
+        welfare = Welfare(population)
+        r = self.make_ranker(ranker, population)
+        true_opinions = {a.id: a.opinion for a in population.agents}
+
+        content_rng = np.random.default_rng(self.seed)         # world/content stream
+        react_rng = np.random.default_rng(self.seed + 1)       # reaction/exploration stream
+
         result = SimulationResult()
-        live_posts: List[Post] = []  # posts still in circulation (recent windows)
+        live_posts: List[Post] = []
+        prev_feeds: Dict[int, set] = {}
+
         for w in range(n_windows):
-            new_posts = []
-            for author in self.authors:
-                new_posts.extend(author.generate(w, self._rng))
-            # candidate pool = new posts + a memory of the last window's posts
+            new_posts: List[Post] = []
+            for author in authors:
+                new_posts.extend(author.generate(w, content_rng))
             live_posts = new_posts + live_posts[: 3 * len(new_posts)]
             post_map = {p.id: p for p in live_posts}
 
             reactions: List[Reaction] = []
             exposures: List[Exposure] = []
-            reach: Dict[int, int] = defaultdict(int)  # author -> exposures
+            reach: Dict[int, int] = defaultdict(int)
             posts_by_author: Dict[int, int] = defaultdict(int)
             for p in new_posts:
                 posts_by_author[p.author_id] += 1
 
-            drift_samples: List[float] = []
-            n_explore = 0
-            n_exposure_total = 0
+            n_explore = n_impr = 0
+            churn_samples: List[float] = []
+            v_sum = tox_sum = div_sum = sat_sum = 0.0
 
-            for agent in self.population.agents:
-                feed_sourced = self._serve_with_source(agent, live_posts, w)
-                feed_ids = [pid for pid, _ in feed_sourced]
-                # baseline exploration: inject uniform-random exposures at the
-                # floor rate — the unconfounded anchor (§6.2).
-                explore_extra = self._exploration_exposures(live_posts, feed_ids)
-                shown = feed_sourced + explore_extra
+            for agent in population.agents:
+                feed = r.rank(agent.id, live_posts, self.n_slots, w)
+                shown = [(pid, ExposureSource.ORGANIC) for pid in feed]
+                if r.wants_exploration:
+                    shown += self._exploration(live_posts, set(feed), react_rng)
 
                 for pid, source in shown:
-                    post = post_map[pid]
-                    loading = true_loading(pid)
-                    if loading is None:
+                    truth = true_post(pid)
+                    if truth is None:
                         continue
-                    kind = react(agent, loading, self._rng)
+                    post = post_map[pid]
+                    kind = react(agent, truth, react_rng)
                     pi = (self.config.epsilon_min
                           if source is ExposureSource.EXPLORATION else 0.5)
-                    exposures.append(
-                        Exposure(agent.id, pid, timestamp=float(w),
-                                 source=source, propensity=pi)
-                    )
+                    exposures.append(Exposure(agent.id, pid, timestamp=float(w),
+                                              source=source, propensity=pi))
                     reach[post.author_id] += 1
-                    n_exposure_total += 1
+                    n_impr += 1
                     if source is ExposureSource.EXPLORATION:
                         n_explore += 1
+                    # ground-truth welfare accounting (per impression)
+                    v_sum += welfare.true_value(truth)
+                    tox_sum += truth.toxicity
+                    div_sum += welfare.divisiveness(truth)
+                    sat_sum += expected_approval(agent, truth)
                     if kind is not None:
-                        reactions.append(self._to_reaction(agent.id, pid, kind, w))
+                        reactions.append(self._reaction(agent.id, pid, kind, w, react_rng))
 
-                # performative drift: change in this agent's top feed score
-                cur = self._top_score(agent, feed_ids)
-                if agent.id in self._prev_scores:
-                    drift_samples.append(abs(cur - self._prev_scores[agent.id]))
-                self._prev_scores[agent.id] = cur
+                cur = set(feed)
+                if agent.id in prev_feeds and (prev_feeds[agent.id] or cur):
+                    inter = len(cur & prev_feeds[agent.id])
+                    union = len(cur | prev_feeds[agent.id])
+                    churn_samples.append(1.0 - inter / union if union else 0.0)
+                prev_feeds[agent.id] = cur
 
-            # retrain on the window
-            if reactions:
-                st = self.chord.fit_window(reactions, post_map, exposures)
-                bridge_scores = [v for v in st.bridging.b_lcb.values() if np.isfinite(v)]
-                g = gini(st.rater_lambda_eff)
-                neff = effective_rater_count(st.rater_lambda_eff)
-            else:
-                bridge_scores, g, neff = [], 0.0, 0.0
+            r.observe(reactions, post_map, exposures, w)
 
-            # author reach feedback (reach per post) -> drives adaptivity
-            for author in self.authors:
-                np_posts = max(1, posts_by_author.get(author.id, 1))
-                author.realized_reach = reach.get(author.id, 0) / np_posts
+            for author in authors:
+                npp = max(1, posts_by_author.get(author.id, 1))
+                author.realized_reach = reach.get(author.id, 0) / npp
+            reach_by_label = {
+                a.label: (reach.get(a.id, 0) / max(1, posts_by_author.get(a.id, 1)))
+                for a in authors
+            }
 
-            firehose = next(a for a in self.authors if a.id == 1003)
-            universal = next(a for a in self.authors if a.id == 1000)
+            diag = r.diagnostics()
+            recovery = embedding_recovery(r.estimated_opinions() or {}, true_opinions)
 
-            result.metrics.append(
-                WindowMetrics(
-                    window=w,
-                    n_posts=len(new_posts),
-                    n_reactions=len(reactions),
-                    gini_lambda=g,
-                    n_eff=neff,
-                    exploration_rate=(n_explore / n_exposure_total) if n_exposure_total else 0.0,
-                    mean_bridge_score=float(np.mean(bridge_scores)) if bridge_scores else 0.0,
-                    firehose_reach_per_post=firehose.realized_reach,
-                    universal_reach_per_post=universal.realized_reach,
-                    score_drift=float(np.mean(drift_samples)) if drift_samples else 0.0,
-                )
-            )
+            result.metrics.append(WindowMetrics(
+                window=w, n_posts=len(new_posts), n_reactions=len(reactions),
+                exploration_rate=(n_explore / n_impr) if n_impr else 0.0,
+                gini_lambda=diag.get("gini_lambda", 0.0),
+                n_eff=diag.get("n_eff", 0.0),
+                mean_bridge_score=diag.get("mean_b_lcb", float("nan")),
+                true_value=v_sum / n_impr if n_impr else float("nan"),
+                toxicity=tox_sum / n_impr if n_impr else float("nan"),
+                divisiveness=div_sum / n_impr if n_impr else float("nan"),
+                satisfaction=sat_sum / n_impr if n_impr else float("nan"),
+                recovery=recovery,
+                feed_churn=float(np.mean(churn_samples)) if churn_samples else 0.0,
+                reach_by_label=reach_by_label,
+            ))
         return result
 
-    # ------------------------------------------------------------- helpers
-    def _serve(self, agent, live_posts, window) -> List[str]:
-        if self.chord.state is None:
-            # cold start: chronological (most recent first)
-            ordered = sorted(live_posts, key=lambda p: -p.created_at)
-            return [p.id for p in ordered[: self.n_slots]]
-        return self.chord.rank(agent.id, live_posts, self.knobs, n_slots=self.n_slots)
+    def compare(self, rankers: List[str], n_windows: int = 8) -> Dict[str, SimulationResult]:
+        """Run each ranker on the same seeded world; returns name -> result."""
+        return {name: self.run(name, n_windows=n_windows) for name in rankers}
 
-    def _exploration_exposures(self, live_posts, feed):
-        """Uniform-random exposures at the floor rate (the identifiability anchor).
+    # -------------------------------------------------------------- helpers
+    def _exploration(self, live_posts, feed_set, rng):
+        """Uniform-random exposures at the floor rate (the identifiability anchor, §6.2).
 
-        Uses stochastic rounding so the *expected* number of random exposures is
-        ``epsilon_min * n_slots`` even when that is below 1 — otherwise a small
-        feed would round the anchor away and silently lose positivity (§6.2).
+        Stochastic rounding keeps the *expected* rate at ``epsilon_min * n_slots``
+        even below 1, so a small feed never silently rounds the anchor away.
         """
         eps = self.config.epsilon_min
         expected = eps * self.n_slots
         k = int(np.floor(expected))
-        if self._rng.random() < (expected - k):
+        if rng.random() < (expected - k):
             k += 1
-        feed_set = set(feed)
         pool = [p.id for p in live_posts if p.id not in feed_set]
         if not pool or k == 0:
             return []
-        idx = self._rng.choice(len(pool), size=min(k, len(pool)), replace=False)
+        idx = rng.choice(len(pool), size=min(k, len(pool)), replace=False)
         return [(pool[i], ExposureSource.EXPLORATION) for i in np.atleast_1d(idx)]
 
-    def _serve_with_source(self, agent, live_posts, window):
-        feed = self._serve(agent, live_posts, window)
-        return [(pid, ExposureSource.ORGANIC) for pid in feed]
-
-    def _to_reaction(self, uid, pid, kind: ReactionKind, window) -> Reaction:
-        from ..types import DEFAULT_REACTION_VALUES
+    def _reaction(self, uid, pid, kind: ReactionKind, window, rng) -> Reaction:
         val = DEFAULT_REACTION_VALUES[kind]
         if kind is ReactionKind.EXPOSED_NO_REACTION:
             val = -abs(self.config.exposed_no_reaction_c)
-        return Reaction(uid, pid, float(val), kind=kind, timestamp=float(window) + self._rng.random())
-
-    def _top_score(self, agent, feed) -> float:
-        if self.chord.state is None or not feed:
-            return 0.0
-        st = self.chord.state
-        return float(st.bridging.b_lcb.get(feed[0], 0.0)) if np.isfinite(
-            st.bridging.b_lcb.get(feed[0], float("-inf"))) else 0.0
+        return Reaction(uid, pid, float(val), kind=kind, timestamp=float(window) + rng.random())

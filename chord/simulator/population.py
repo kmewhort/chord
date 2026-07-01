@@ -40,20 +40,29 @@ def make_bipolar_population(
     separation: float = 2.0,
     frac_indiscriminate: float = 0.2,
     seed: int = 0,
+    d_true: Optional[int] = None,
 ) -> Population:
     """A two-cluster (bipolar) population — the canonical divide (Appendix C).
 
     Half the agents sit near ``+separation`` on axis 0, half near ``-separation``;
     a ``frac_indiscriminate`` fraction are low-selectivity scrollers whose
     reactions carry near-zero information (§2 principle 2, §5).
+
+    ``d_true`` (defaults to ``d``) is the *true* opinion dimensionality of the
+    data-generating process. Setting ``d_true > d`` gives the population structure
+    the estimator (which fits in ``d`` dims) cannot fully represent — a deliberately
+    *non-circular* world so the simulator does not merely test "can least-squares
+    recover a least-squares truth" (§13.4 under-specification; see SIMULATOR notes).
+    Axis 0 is the load-bearing divide; the extra axes are personal-taste nuance.
     """
+    d_true = d_true if d_true is not None else d
     rng = np.random.default_rng(seed)
     agents: List[Agent] = []
     for i in range(n):
         cluster = 0 if i < n // 2 else 1
-        center = np.zeros(d)
+        center = np.zeros(d_true)
         center[0] = separation if cluster == 0 else -separation
-        opinion = center + rng.normal(0, 0.5, size=d)
+        opinion = center + rng.normal(0, 0.5, size=d_true)
         indiscriminate = rng.random() < frac_indiscriminate
         agents.append(
             Agent(
