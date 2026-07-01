@@ -6,6 +6,11 @@ divisiveness D(p) (§4.1), and the per-cluster B_LCB tested bridged support (§4
 from .factorization import FactorizationResult, MatrixFactorization
 from .divisiveness import DivisivenessModel, fit_divisiveness
 from .bridging import BridgingScorer, BridgingScores, ClusterModel, cluster_reception
+from .calibration import (
+    BiasCalibrator,
+    calibrated_reception,
+    split_reception_by_source,
+)
 from .depth import estimate_depth
 from .priors import AuthorClusterReception, hierarchical_priors
 from .spectral import spectral_opinion_clusters
@@ -22,6 +27,9 @@ __all__ = [
     "estimate_depth",
     "AuthorClusterReception",
     "hierarchical_priors",
+    "BiasCalibrator",
+    "calibrated_reception",
+    "split_reception_by_source",
     "spectral_opinion_clusters",
     "BridgingScores",
     "ClusterModel",

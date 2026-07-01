@@ -36,6 +36,9 @@ from .model import (
     estimate_depth,
     AuthorClusterReception,
     hierarchical_priors,
+    BiasCalibrator,
+    calibrated_reception,
+    split_reception_by_source,
     DivisivenessModel,
     FactorizationResult,
     MatrixFactorization,
@@ -109,6 +112,7 @@ class Chord:
         self.reception_anchor = ExplorationAnchor()   # exploration-anchored cap (§6.2/§13.10)
         self.author_reception = AuthorClusterReception(  # E9 hierarchical-prior history
             decay=self.config.hierarchical_decay)
+        self.bias_calibrator = BiasCalibrator()   # E2 ε-slice bias model (§6/§13.2)
         self.state: Optional[WindowState] = None
 
     # ------------------------------------------------------------- learning
@@ -197,6 +201,16 @@ class Chord:
                 for r in reactions])
             auth_weights = weights * np.where(oob, cfg.authority_out_of_band_weight, 1.0)
         reception = cluster_reception(reactions, auth_weights, clusters)
+
+        # E2 (§6/§13.2): calibrate organic reception against the ε-slice — use unconfounded
+        # exploration reception where present, else the per-cluster bias-model prediction.
+        if cfg.bias_calibration:
+            org, exp = split_reception_by_source(
+                reactions, auth_weights, clusters.assignments, exposure_index,
+                ExposureSource.EXPLORATION)
+            reception, pairs = calibrated_reception(
+                reception, org, exp, self.bias_calibrator)
+            self.bias_calibrator.update(pairs)
 
         # estimated content depth q_p on the vouch channel (§10) — earned, not author-set.
         # λ-weighted so a fresh sybil's vouch counts ~0; opinion clusters are shared.

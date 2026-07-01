@@ -103,6 +103,10 @@ class ChordConfig:
     hierarchical_prior: bool = False
     hierarchical_n0_author: float = 8.0   # author-history prior strength
     hierarchical_decay: float = 0.7       # cross-window decay of author reception
+    # E2 (§6/§13.2): calibrate organic reception against the ε-slice — fit a per-cluster
+    # bias model r_exp≈a+b·r_org on paired (organic, exploration) reception (accumulated
+    # across windows) and predict unconfounded reception everywhere. Off = no correction.
+    bias_calibration: bool = False
     # E5a (§13#10): down-weight reactions NOT preceded by a ranker/ε delivery (source
     # OUT_OF_BAND) for the AUTHORITY signal B_LCB — a low-reach ring must route out-of-
     # band, so this throttles it to the commons rate ε. 1.0 = off; ~0.05 = near-zero.
