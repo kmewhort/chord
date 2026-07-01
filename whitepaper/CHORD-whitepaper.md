@@ -529,9 +529,12 @@ subsystem.
   App C.4):** a *distributed* ring that camouflages puppets across clusters — each rating
   genuine content to embed in a real cluster, then boosting one target — manufactures fake
   cross-cluster support that defeats the $B_{\mathrm{LCB}}$ min *and* is invisible to the
-  out-diversity weight (the puppets are not single-target *raters*). A coordination discount on
-  correlated approvers (`coordination_penalty`, the COCM / pairwise-bounded idea) only
-  *partially* contains it; robustly neutralizing a camouflaged ring is open (§13.10).
+  out-diversity weight (the puppets are not single-target *raters*). A plain co-approval discount
+  only partially contains it, but a **cluster-spread-gated loyalty discount** does — it keys on
+  the one act camouflage can't hide (the same accounts approving *every* target post over time)
+  and gates by the bloc's opinion-cluster spread, driving the ring's amplification below a
+  legitimate author's; the exploration-anchor cap and spectral spike-removal are the principled
+  hardenings still open (§13.10).
 - **Brigading** — two independent defenses: a brigade of fresh accounts has no cross-divide
   trust path, and a brigade *creates* a split distribution that the divisiveness term and
   the $B_{\mathrm{LCB}}$ min-over-clusters penalize. Gaming lowers the score.
@@ -625,16 +628,25 @@ Honest residuals, several of which no fix fully removes:
    an aggregator; and the shrinkage is only as good as the exposure count $n_{cp}$ feeding it —
    a rating-count proxy works, but a real propensity-corrected exposure model (§6) is the honest
    input.
-10. **The camouflaged distributed ring is open** (§10, found in the simulator, App C.4). A ring
-    that embeds puppets in *every* opinion cluster (by rating genuine content) and has them all
-    boost one target fabricates cross-cluster support that beats $B_{\mathrm{LCB}}$'s min *and*
-    slips past the out-diversity λ weight (the puppets are not single-target raters). A
-    coordination discount on correlated approvers is only a partial fix, because camouflage
-    dilutes the co-approval signal. The promising-but-unbuilt defenses are heavier: spectral
-    spike-removal on the rater co-approval matrix (planted-clique / BBP detection), co-approval
-    community detection, or COCM pairwise-bounded matching over the reception estimate. This is
-    the collusion analogue of the high-precision clique (#5) — timing/provenance and costly
-    identity remain the ultimate backstops.
+10. **The camouflaged distributed ring — defended, with a residual** (§10, found *and fixed* in
+    the simulator, App C.4). A ring that embeds puppets in *every* opinion cluster (by rating
+    genuine content) and has them all boost one target fabricates cross-cluster support that
+    beats $B_{\mathrm{LCB}}$'s min *and* slips past the out-diversity λ weight (the puppets are
+    not single-target raters); a plain co-approval discount is only partial (camouflage dilutes
+    it). The attack's mechanism is a **rank-1 common-mode lift of the shared intercepts** $b_p,
+    b_a$: the puppets scatter across clusters so their directional pull on $y_p$ cancels, and
+    only their shared positive residual survives, lifting every cluster's reception equally. The
+    shipped defense keys on the one act camouflage cannot hide — the *same accounts* approving
+    *every* one of the target's posts over time — and gates it by the loyal bloc's **opinion-
+    cluster spread**, so a dispersed ring is penalized while a coherent single-cluster fanbase is
+    not; in the simulator this drives the ring's amplification from $2.8\times$ a legitimate
+    author's reach back below $1\times$, even for a high-quality target. The **residual** is the
+    principled hardening left unbuilt: an *exploration-anchor cap* (bound each cluster's organic
+    reception by its unconfounded ε-exploration reception — K-independent, but wants more
+    randomized traffic than the floor provides) and *spectral spike-removal* (deflate the rank-1
+    boost block from the residual before re-fitting the intercepts — detection that *strengthens*
+    with ring size, $\sigma_{\text{spike}}\propto\sqrt K$). Timing/provenance and costly identity
+    remain the ultimate backstops.
 
 *Directions considered and declined.* Several defensive add-ons were evaluated and left out
 deliberately, on the principle that each addition should strengthen an existing mechanism or

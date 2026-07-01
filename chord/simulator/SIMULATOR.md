@@ -56,17 +56,30 @@ weaknesses; each was then chased down (tests in `tests/test_simulator_*`):
    depth handling (`config.depth_reward` + `depth_gate`, §10) promotes genuine depth
    and multiplicatively gates a shallow post's positive bridged support. Result: true
    value 0.12→0.18, bait reach 27→5. (`test_simulator_bait.py`)
-2. **Distributed (camouflaged) sybil ring — partially mitigated, residual open.** A
-   naive ring is contained by min-over-clusters, but a ring that camouflages puppets
-   into every cluster and boosts one target fakes cross-cluster support (reach 27→78
-   at K=30) and neither the §5 out-diversity λ nor the keystone stops it. The
-   `coordination_penalty` (co-approval discounting, COCM/pairwise-bounded idea)
-   reduces the ring's reach (78→53) but does **not** fully contain it — camouflage
-   dilutes the pairwise co-approval signal. **Open problem:** robustly neutralizing a
-   camouflaged ring needs stronger tools — spectral spike-removal on the rater
-   co-approval matrix (planted-clique / BBP spike detection), co-approval community
-   detection, or COCM pairwise-bounded matching over the reception estimate.
+2. **Distributed (camouflaged) sybil ring — defended.** A naive ring is contained by
+   min-over-clusters, but a ring that camouflages puppets into every cluster and
+   boosts one target fakes cross-cluster support (inflation — target reach ÷
+   legit-author reach — of 2.83× at K=30), and neither the §5 out-diversity λ nor a
+   plain co-approval `coordination_penalty` stops it (camouflage dilutes co-approval).
+   **Mechanism** (from the RMT/mechanism-design research): the attack is a *rank-1
+   common-mode lift* of the shared `b_p`/`b_a` intercepts — the puppets scatter across
+   clusters so their directional pull cancels and only the shared positive residual
+   survives, lifting every cluster's reception equally. **Defense** (`CollusionTracker`
+   + `config.collusion_loyalty_penalty`): discount an author by the fraction of its
+   support coming from a super-loyal bloc (accounts that approve *every* one of its
+   posts over time — the one act camouflage can't hide) **gated by that bloc's
+   opinion-cluster spread**, so a dispersed ring is penalized while a coherent
+   single-cluster fanbase is not. Contains the ring at inflation 0.82× (and 0.63× for
+   a high-quality target the depth defense can't catch), negligible collateral.
    (`test_simulator_collusion.py`)
+
+   *Principled complements (validated in the literature, not yet built):* the
+   **exploration-anchor cap** — cap each cluster's organic reception at the upper
+   confidence bound of its unconfounded ε-exploration reception (K-independent,
+   provably non-collateral, but needs more exploration traffic than this sim floors);
+   and **spectral spike-removal** — deflate the rank-1 boost block from the MF residual
+   before re-fitting the intercepts (detection *strengthens* with K, σ_spike ∝ √K).
+   RPCA is the wrong tool (the rank-1 boost lands in the low-rank part).
 3. **Bridging↔satisfaction tradeoff — characterized** (see `test_simulator_frontier.py`).
 
 ## Layout
