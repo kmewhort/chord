@@ -779,39 +779,3 @@ captured by any one instance. A maximal host that fills every port richly (verif
 identity, portable pods, external Polis clustering, a feed substrate, a governance UI) is an
 existence proof that all adapters can be provided, but the architecture runs on a single
 vanilla Mastodon instance with only the default adapters.
-
-## Appendix E. Implementation-derived corrections
-
-Building a reference implementation surfaced five places where the math above was
-underspecified or, taken literally, subtly wrong. Each correction is folded into the relevant
-section; they are collected here for the record because each is a place a careful
-re-implementer would otherwise rediscover the hard way.
-
-1. **EigenTrust normalization (§5).** The trust matrix $T$ must be row-stochastic — normalized
-   over each *rater's outgoing* trust ($\sum_u T_{vu}=1$) — not column-stochastic. Column
-   normalization lets a Sybil author boosted by a single dedicated puppet inherit that puppet's
-   entire weight (its lone incoming edge normalizes to $1$), defeating the very Sybil-starvation
-   the mechanism exists for. The paper's "$\propto$" hid this; it is now written explicitly.
-2. **Weight scale vs. regularization (§6.2).** Because $\lambda$ is a normalized distribution,
-   the observation weights $\omega_{up}$ are $O(1/|E|)$. The self-normalized data term is
-   invariant to that scale but the regularizer $\Omega(\Theta)$ is not, so $\Omega$ dominates
-   and collapses the embeddings toward the origin. Rescale $\omega$ to unit mean before each
-   solve; self-normalization leaves every estimate unchanged.
-3. **Budget replenishment (§8).** Rectify the strength term, $[\Phi(p)]_+$, so a net-divisive
-   post fails to replenish rather than draining the author's floor $B_0$, and clip
-   $B_{t+1}\in[0,B_{\max}]$ so budgets stay bounded — a precondition the §9 bounded-regime
-   argument relies on. The original unrectified, unclipped sum can drive $B(a)$ negative.
-4. **Exploration-floor positivity (§7.2).** Meet the hard feed floor $\ge\epsilon N$ by rounding
-   *up* ($\lceil\epsilon N\rceil$), and realize the *randomized* identifiability anchor of §6.2
-   by *stochastic* rounding of $\epsilon N$ (correct in expectation). Either way, a plain
-   $\lfloor\epsilon N\rfloor$ rounds a sub-unit reservation to zero on the small feeds typical
-   of a fediverse instance, silently forfeiting the $\pi\ge\epsilon>0$ positivity that §6.2
-   identifiability — and the §9.3 persistent-excitation invariant — rest on.
-5. **Single application of $\rho$ (§7.1).** $D(p)$ and $A$ are defined at $\rho=1$; the $\rho$
-   knob enters only as the §7.1 penalty coefficient. Reading §12's "$\rho$ scales $A$" as a
-   rescaling of $A$ *inside* $D$ *and* keeping the §7.1 coefficient applies the knob twice.
-
-None of these alters the paper's objective or its qualitative claims; each was validated by a
-regression test that reproduces the corresponding claim on synthetic data (the keystone
-ordering, avoidance of the inverse-variance pathology, IPW recovery under MNAR with the anchor
-sweep, firehose dilution and Sybil binding, and the bounded-regime controller).
