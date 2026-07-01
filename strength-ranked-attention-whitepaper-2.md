@@ -199,10 +199,18 @@ eigentrust iteration on the learned geometry:
 $$
 \lambda \;\leftarrow\; \tfrac{1-\delta}{n}\mathbf 1 \;+\; \delta\, T^\top \lambda,
 \qquad
-T_{vu} \;\propto\; \sum_{p:\,a(p)=u}\, [r_{vp}]_+\,\cdot\,\mathrm{dist}(x_v, x_u)
+T_{vu} \;=\; \frac{\sum_{p:\,a(p)=u}\, [r_{vp}]_+\,\cdot\,\mathrm{dist}(x_v, x_u)}
+                  {\sum_{u'}\sum_{p:\,a(p)=u'}\, [r_{vp}]_+\,\cdot\,\mathrm{dist}(x_v, x_{u'})}
 $$
 
-The teleport floor ($\delta<1$) makes this a contraction with a unique fixed point, floors
+$T$ must be **row-stochastic** — normalized over each *rater's outgoing* trust
+($\sum_u T_{vu}=1$), not over each author's incoming — so a rater distributes one fixed unit
+of trust among the authors it approves (classic EigenTrust). The choice is load-bearing for
+Sybil starvation: under *column* normalization a Sybil author boosted by a single colluding
+puppet would inherit that puppet's entire weight (its lone incoming edge normalizes to $1$),
+whereas under row normalization an honestly-approved author accrues from *many* independent
+cross-divide raters while a one-puppet Sybil receives only that puppet's fraction. The teleport
+floor ($\delta<1$) makes this a contraction with a unique fixed point, floors
 every rater's weight (no one is zeroed), and starves Sybils (fresh accounts have no
 incoming cross-divide trust). **Whichever estimator is used, weight by agreement with the
 bridged-quality signal after ideology is projected out — never by residual variance.**
@@ -258,6 +266,15 @@ never shown it) can have true per-pair propensity *below* $\epsilon$, so clippin
 biases exactly the deep-MNAR pairs the correction exists to recover. Adopt the cap, but
 size it knowing it slightly under-corrects the hardest cases.
 
+**Weight scale vs. regularization.** The data term is self-normalized (divided by
+$\sum\omega$) and hence invariant to a global rescaling of $\omega$, but $\Omega(\Theta)$ is
+*not*. Because $\lambda_u$ arrives as a normalized distribution ($\sum_u\lambda_u=1$ from the
+§5 eigentrust fixed point), the raw $\omega_{up}$ are $O(1/|E|)$, so a fixed $\Omega$ silently
+dominates the fit and collapses the embeddings toward the origin. Rescale $\omega$ to unit
+mean over $E$ before each solve (equivalently, read $\Omega$'s strength relative to
+mean-one weights); by the self-normalization above this leaves every estimate unchanged
+while restoring a well-conditioned regularized problem.
+
 ### 6.3 The propensity model — an open menu, not a commitment
 
 Because misspecified propensities silently reintroduce the MNAR bias the whole edifice
@@ -292,6 +309,11 @@ $M\in[0,1]$ is the master dial. $M=0$: give me what my side likes, divisiveness 
 divisiveness penalized. This is a **consumption** choice and therefore ungameable — it only
 changes the chooser's own feed.
 
+Here $A$ is the *fixed* ($\rho=1$) divide-weighting of §4.1 and $D(p)=y_p^\top A\,y_p$ is
+likewise defined at $\rho=1$ (Appendix A); the $\rho$ knob enters the value **exactly once**,
+as the coefficient on the penalty term. The §12 shorthand "$\rho$ scales $A$" is realized
+*here* — do not additionally fold $\rho$ into $A$ inside $D$, or the knob is applied twice.
+
 ### 7.2 Feed as constrained selection
 
 Per viewer, choose $N$ slots to maximize value under constraints. This follows Ethelo's
@@ -306,7 +328,14 @@ $$
 subject to: per-author cap and budget ($\sum_{p\in S,\,a(p)=a}E(p)\le B(a)$, §8);
 **diverse-*approval* coverage** (submodular — diminishing returns for re-covering an
 already-covered region of opinion space); exploration floor $\ge\epsilon N$. Greedy gives
-the $1-1/e$ guarantee; run it over the top few hundred candidates, not the corpus.
+the $1-1/e$ guarantee; run it over the top few hundred candidates, not the corpus. Meet the
+hard floor by rounding **up**, $\lceil\epsilon N\rceil$: on the small feeds typical of a
+fediverse instance a floor of $\lfloor\epsilon N\rfloor$ rounds a sub-unit reservation to
+zero and silently forfeits the positivity guarantee $\pi\ge\epsilon>0$ that §6.2
+identifiability rests on. (The *randomized* identifiability anchor of §6.2 — the slice whose
+unbiasedness needs the exposure rate to equal $\epsilon$ **in expectation**, not merely to be
+nonzero — is instead realized by *stochastic* rounding of $\epsilon N$: reserve
+$\lfloor\epsilon N\rfloor$ and one more with probability $\epsilon N-\lfloor\epsilon N\rfloor$.)
 
 > **Diverse approval, not diverse exposure.** The intuitive "show people the outgroup" move
 > has poor validity as a bridging measure — evidence suggests indiscriminate outgroup
@@ -329,10 +358,14 @@ capped and replenished by realized strength:
 $$
 \sum_{p:\,a(p)=a,\,p\in W} E(p) \le B(a),
 \qquad
-B_{t+1}(a) = B_0 + \eta\!\!\sum_{p:\,a(p)=a,\,p\in W_t}\!\! \Phi(p)\,E(p)
+B_{t+1}(a) = \mathrm{clip}\!\Big(B_0 + \eta\!\!\sum_{p:\,a(p)=a,\,p\in W_t}\!\! [\Phi(p)]_+\,E(p),\ \ 0,\ B_{\max}\Big)
 $$
 
-Firehose posting spreads a fixed budget thin; quality regenerates it. This inverts the
+Two guards keep the replenishment well-behaved: the rectifier $[\Phi(p)]_+$ makes a
+net-divisive post ($\Phi<0$) simply *fail to replenish* rather than draining the author's
+floor $B_0$ (which would double-punish and could drive $B(a)$ negative), and the clip to
+$[0,B_{\max}]$ keeps every budget bounded — a precondition the §9 bounded-regime argument
+relies on. Firehose posting spreads a fixed budget thin; quality regenerates it. This inverts the
 engagement logic (where each post is an independent virality lottery ticket, so volume is
 rational) into one where posting more *dilutes you* unless it earns. The budget binds to
 the **identity** port, not the raw account, so it cannot be sharded across sockpuppets.
@@ -746,3 +779,39 @@ captured by any one instance. A maximal host that fills every port richly (verif
 identity, portable pods, external Polis clustering, a feed substrate, a governance UI) is an
 existence proof that all adapters can be provided, but the architecture runs on a single
 vanilla Mastodon instance with only the default adapters.
+
+## Appendix E. Implementation-derived corrections
+
+Building a reference implementation surfaced five places where the math above was
+underspecified or, taken literally, subtly wrong. Each correction is folded into the relevant
+section; they are collected here for the record because each is a place a careful
+re-implementer would otherwise rediscover the hard way.
+
+1. **EigenTrust normalization (§5).** The trust matrix $T$ must be row-stochastic — normalized
+   over each *rater's outgoing* trust ($\sum_u T_{vu}=1$) — not column-stochastic. Column
+   normalization lets a Sybil author boosted by a single dedicated puppet inherit that puppet's
+   entire weight (its lone incoming edge normalizes to $1$), defeating the very Sybil-starvation
+   the mechanism exists for. The paper's "$\propto$" hid this; it is now written explicitly.
+2. **Weight scale vs. regularization (§6.2).** Because $\lambda$ is a normalized distribution,
+   the observation weights $\omega_{up}$ are $O(1/|E|)$. The self-normalized data term is
+   invariant to that scale but the regularizer $\Omega(\Theta)$ is not, so $\Omega$ dominates
+   and collapses the embeddings toward the origin. Rescale $\omega$ to unit mean before each
+   solve; self-normalization leaves every estimate unchanged.
+3. **Budget replenishment (§8).** Rectify the strength term, $[\Phi(p)]_+$, so a net-divisive
+   post fails to replenish rather than draining the author's floor $B_0$, and clip
+   $B_{t+1}\in[0,B_{\max}]$ so budgets stay bounded — a precondition the §9 bounded-regime
+   argument relies on. The original unrectified, unclipped sum can drive $B(a)$ negative.
+4. **Exploration-floor positivity (§7.2).** Meet the hard feed floor $\ge\epsilon N$ by rounding
+   *up* ($\lceil\epsilon N\rceil$), and realize the *randomized* identifiability anchor of §6.2
+   by *stochastic* rounding of $\epsilon N$ (correct in expectation). Either way, a plain
+   $\lfloor\epsilon N\rfloor$ rounds a sub-unit reservation to zero on the small feeds typical
+   of a fediverse instance, silently forfeiting the $\pi\ge\epsilon>0$ positivity that §6.2
+   identifiability — and the §9.3 persistent-excitation invariant — rest on.
+5. **Single application of $\rho$ (§7.1).** $D(p)$ and $A$ are defined at $\rho=1$; the $\rho$
+   knob enters only as the §7.1 penalty coefficient. Reading §12's "$\rho$ scales $A$" as a
+   rescaling of $A$ *inside* $D$ *and* keeping the §7.1 coefficient applies the knob twice.
+
+None of these alters the paper's objective or its qualitative claims; each was validated by a
+regression test that reproduces the corresponding claim on synthetic data (the keystone
+ordering, avoidance of the inverse-variance pathology, IPW recovery under MNAR with the anchor
+sweep, firehose dilution and Sybil binding, and the bounded-regime controller).
