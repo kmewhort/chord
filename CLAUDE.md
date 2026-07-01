@@ -40,7 +40,9 @@ pytest validate/ -rxX         # opt-in real-data validation (Appendix C); needs 
 |---|---|---|
 | §4.1 | `chord/model/factorization.py` | Weighted biased MF via ALS (`MatrixFactorization` → `FactorizationResult`) |
 | §4.1 | `chord/model/divisiveness.py` | Whitening, divide-weighting `A`, `D(p)=yᵀAy` |
-| §4.2 | `chord/model/bridging.py` | `ClusterModel`, `BridgingScorer` → `B_LCB` |
+| §4.2 | `chord/model/bridging.py` | `ClusterModel`, `BridgingScorer` → `B_LCB` (empirical per-cluster reception, `cluster_reception`) |
+| §4.2 | `chord/model/spectral.py` | Deterministic spectral opinion clusters (`spectral_partition`) + continuous opinion-axis coord |
+| §10 | `chord/model/depth.py` | Earned depth `q_p` (`estimate_depth`) — bridged support on the `VOUCH` merit channel |
 | §5   | `chord/rater/eigentrust.py`, `quality.py`, `scout.py` | λ, quality-tracking, `q_scout` |
 | §8   | `chord/rater/recycling.py` | `λ_eff` influence recycling |
 | §6   | `chord/propensity/` | `base` interface, `models` (menu), `ipw`, `doubly_robust` |

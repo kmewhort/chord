@@ -11,7 +11,7 @@ dynamics.)
 |---|---|---|
 | **A** invariants / metamorphic (`tests/test_properties.py`) | determinism, λ-distribution+budgets, Sybil-boundedness, permutation-invariance | 3 pass, **1 finding** |
 | **B** robustness sweeps (`tests/test_robustness.py`) | CHORD>engagement across (d, k, aggregator)×seeds | pass (8/8 configs) |
-| **C** adaptive adversaries (`tests/test_adaptive_adversary.py`, `validate/test_adaptive_ring.py`) | loyalty defense vs partial-approval ring; depth gate vs breadth vs forged signal | 2 pass, **1 finding** |
+| **C** adaptive adversaries (`tests/test_adaptive_adversary.py`, `validate/test_adaptive_ring.py`) | loyalty defense vs partial-approval ring; depth gate vs breadth vs forged signal | pass (forge finding fixed, F4) |
 | **D** dynamic theory (`tests/test_dynamics.py`) | performativity instability, long-horizon boundedness, §9.3 controller | 2 pass, **1 finding** |
 
 ## What held (validated) ✅
@@ -89,14 +89,21 @@ finding:**
   lenient on one-sided content — the author **budget (§8)**, not B_LCB, bounds a
   firehose's total reach.
 
-### F4. The depth defense is **evadable by forging the depth signal** *(design/research)*
-`tests/test_adaptive_adversary.py::test_forged_depth_signal_evades_the_gate`
-The anti-bait depth reward+gate trust the per-post depth *signal*, so a baiter that
-forges a high depth score makes shallow content (value 0.431) beat genuine quality
-(0.361). This is the documented §10 caveat, now demonstrated. *Fix* is a design/
-research question: the depth signal must be **non-forgeable** (provenance, costly
-signal, or a classifier the author can't set) — the same "signal integrity is
-load-bearing" theme as identity forge-cost for Sybils.
+### F4. The depth defense was **evadable by forging the depth signal** — ✅ FIXED (earned latent)
+`tests/test_adaptive_adversary.py` (now `test_depth_is_earned_not_forged`, passes)
+The anti-bait depth reward+gate trusted a per-post depth *feature*, so a baiter that
+forged a high score made shallow content (0.431) beat genuine quality (0.361) — a §12
+wall violation. **Fix landed:** depth is now an *estimated latent* `q_p`, computed like
+B_LCB — the empirical-Bayes-shrunk (neutral prior), λ-weighted, per-cluster mean of a
+separate opinion-independent **vouch** channel (`chord/model/depth.py`,
+`ReactionKind.VOUCH`). An author cannot set it; genuine depth earns cross-cluster
+vouches while a shallow bait earns anti-vouches, and the channel inherits the collusion
+defenses. Verified: forging the feature is ignored (G=1.0, B=0.5) and more approval
+breadth can't rescue a shallow bait; in the closed loop the earned gate still raises
+true value and reduces bait reach (softer than the old oracle feature — the honest cost
+of estimating vs. trusting the author). Residual: a patient adversary who accrues honest
+vouch-weight then farms fake merit votes (the #5/#10 clique) — a DMI peer-prediction
+weight on the vouch channel is the noted next hardening.
 
 ### F5. No sharp §9.2 stability phase transition *(characterization, not a bug)*
 Instability rises *gradually* with performativity (content-divisiveness std

@@ -584,12 +584,15 @@ subsystem.
   trust path, and a brigade *creates* a split distribution that the divisiveness term and
   the $B_{\mathrm{LCB}}$ min-over-clusters penalize. Gaming lowers the score.
 - **Bridging-bait (Goodhart)** — shallow universal content (cat memes) can score high
-  bridged support. The depth handling now resists it structurally: a per-post depth/quality
-  signal both *rewards* genuine depth and multiplicatively **gates** a shallow post's positive
-  bridged support toward a floor, so breadth alone cannot buy a crown. In the simulator this
-  roughly halved the gap to an oracle and cut a bait author's reach ~6× (§4.2, App C.4). It
-  reduces rather than eliminates the failure — a baiter who can forge a high depth *signal*
-  still profits, so the signal's own integrity matters.
+  bridged support. The depth handling resists it structurally: an **estimated** depth $q_p$
+  both *rewards* genuine depth and multiplicatively **gates** a shallow post's positive bridged
+  support toward a floor, so breadth alone cannot buy a crown. Crucially $q_p$ is *earned*, not
+  an author-set feature — it is the empirical-Bayes-shrunk, λ-weighted, per-cluster mean of a
+  separate opinion-independent *vouch* channel (§13#11), so a baiter cannot forge it and must
+  instead obtain genuine cross-cluster vouching (whereupon the collusion defenses apply). In the
+  simulator, turning the earned gate on raises delivered true value and reduces a bait author's
+  reach; the effect is smaller than with an oracle depth feature — the honest cost of estimating
+  the signal rather than trusting the author to report it.
 - **High-precision collusive clique** — genuinely the hardest residual: colluding experts
   read like independently-delighted experts, and peer-prediction weighting has equilibria
   where raters agree with *each other* rather than with truth. Only timing/provenance
@@ -721,20 +724,24 @@ Honest residuals, several of which no fix fully removes:
     time?) or out-of-band (identity/provenance); RPCA is doubly wrong (the boost lands in its
     low-rank part and is absorbed). Timing/provenance and costly identity remain the ultimate
     backstops, and this is the collusion analogue of the high-precision clique (#5).
-11. **The anti-bait depth signal is forgeable — open.** The §7/§10 anti-bait mechanism rewards
-    and gates on a per-post *depth* signal, and an adversarial test confirms the obvious hole: an
-    author who forges a high depth score makes shallow content (value $0.43$) beat genuine quality
-    ($0.36$). Structurally this is a §12 wall violation — depth is an *authority* quantity but sits
-    on the author-settable side. The gate does resist buying more *breadth* (Goodhart-robust to
-    approval), but not a forged signal. The fix is to make depth an **estimated latent**, computed
-    the way $B_{\mathrm{LCB}}$ already computes bridged support — an empirical-Bayes-shrunk,
-    per-cluster, λ-weighted intercept on a *separate quality-directed rating/read channel* — with
-    rater honesty on that channel enforced by a determinant-mutual-information (DMI) peer-prediction
-    weight in place of the current correlate-with-the-crowd heuristic. That moves depth to the
-    earned side of the wall (an author cannot set it; it emerges from others' cross-cluster
-    vouching) and inherits CHORD's collusion defenses for the residual it cannot close (the
-    coordinated-clique of #5/#10). Being built out; until then, keep $\text{depth\_reward}=0$ and
-    treat the gate as advisory.
+11. **The anti-bait depth signal was forgeable — fixed; depth is now earned.** An adversarial
+    test found the obvious hole in the original design: depth was a per-post *feature* the author
+    set, so forging a high score made shallow content (value $0.43$) beat genuine quality ($0.36$)
+    — a §12 wall violation (an authority quantity sitting on the author-settable side). The fix
+    makes depth an **estimated latent** $q_p$, computed the way $B_{\mathrm{LCB}}$ computes bridged
+    support: the empirical-Bayes-shrunk (neutral-prior), λ-weighted, per-cluster mean of a
+    *separate merit/vouch channel* — vouches that a post is substantive, opinion-independent so
+    genuine depth earns *cross-cluster* support while a broadly-liked shallow bait earns
+    anti-vouches. An author cannot set it; it emerges from *others'* dispersed vouching and
+    inherits the collusion defenses (a bait's fake vouchers face the same loyalty/out-diversity/
+    exploration machinery as a boost ring). In tests, forging the feature now does nothing and
+    more approval *breadth* cannot rescue a shallow bait; in the closed loop, turning the
+    (earned) gate on still raises delivered true value and reduces bait reach — with a smaller
+    effect than the old oracle feature, the honest cost of a signal estimated from noisy vouches
+    rather than read off ground truth. The residual is the same coordinated-clique of #5/#10 (a
+    patient adversary who accrues honest vouch-weight then farms fake merit votes), for which a
+    determinant-mutual-information (DMI) peer-prediction weight on the vouch channel — replacing
+    the correlate-with-the-crowd quality heuristic — is the noted next hardening.
 12. **The §9.3 concentration controller is wired but dormant.** It now genuinely feeds its response
     back into the estimator (an earlier build computed a response the loop never read), and a
     forced tighten measurably flattens $\lambda$. But in every scenario tried, baseline
@@ -974,8 +981,10 @@ degenerate on the dense CN core; re-keyed onto the **continuous opinion-axis coo
 **continuous loyalty**, it detects a real Community-Notes ring (manufactured-fraction
 $\approx0.82$) and, under an adaptive partial-approval attacker, contains every *effective*
 attack — leaving only the thin-ring evasion that is provably indistinguishable from genuine
-dispersed support (§13#10). One finding is left open and red on purpose: the anti-bait depth
-signal is forgeable (§13#11), its fix in progress.
+dispersed support (§13#10). (iv) *The anti-bait depth signal was forgeable* — an author set it
+as a feature; it is now an earned latent $q_p$ estimated from a separate opinion-independent
+vouch channel (§13#11), so forging the feature or buying more approval breadth no longer works,
+at the honest cost of a softer signal than an oracle feature.
 
 ## Appendix D. Reference architecture for a fediverse deployment
 

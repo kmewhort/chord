@@ -54,8 +54,12 @@ weaknesses; each was then chased down (tests in `tests/test_simulator_*`):
    couldn't tell genuine quality from shallow broad-appeal, so CHORD delivered only
    ~1/3 of the oracle's true value and a bait author kept high reach. The anti-bait
    depth handling (`config.depth_reward` + `depth_gate`, §10) promotes genuine depth
-   and multiplicatively gates a shallow post's positive bridged support. Result: true
-   value 0.12→0.18, bait reach 27→5. (`test_simulator_bait.py`)
+   and multiplicatively gates a shallow post's positive bridged support. Since F4, depth
+   is an **earned** latent `q_p` estimated from a `ReactionKind.VOUCH` merit channel the
+   sim generates from true quality (opinion-independent, its own RNG; the engagement
+   baseline is barred from learning it) — *not* an author feature, so it can't be forged.
+   Result (earned signal, softer than the old oracle feature): true value up, bait reach
+   ~0.75×. (`test_simulator_bait.py`, `tests/test_adaptive_adversary.py`)
 2. **Distributed (camouflaged) sybil ring — defended.** A naive ring is contained by
    min-over-clusters, but a ring that camouflages puppets into every cluster and
    boosts one target fakes cross-cluster support (inflation — target reach ÷
