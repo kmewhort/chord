@@ -5,7 +5,8 @@ divisiveness D(p) (§4.1), and the per-cluster B_LCB tested bridged support (§4
 """
 from .factorization import FactorizationResult, MatrixFactorization
 from .divisiveness import DivisivenessModel, fit_divisiveness
-from .bridging import BridgingScorer, BridgingScores, ClusterModel
+from .bridging import BridgingScorer, BridgingScores, ClusterModel, cluster_reception
+from .spectral import spectral_opinion_clusters
 from .coordination import CollusionTracker, coordination_scores
 from .reception_anchor import ExplorationAnchor
 
@@ -15,6 +16,8 @@ __all__ = [
     "DivisivenessModel",
     "fit_divisiveness",
     "BridgingScorer",
+    "cluster_reception",
+    "spectral_opinion_clusters",
     "BridgingScores",
     "ClusterModel",
     "coordination_scores",

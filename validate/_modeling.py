@@ -15,9 +15,10 @@ from chord.model import (
     ClusterModel,
     FactorizationResult,
     MatrixFactorization,
+    cluster_reception,
     fit_divisiveness,
+    spectral_opinion_clusters,
 )
-from chord.ports.adapters import KMeansPartitionAdapter
 from chord.types import Id, Post, Reaction
 
 
@@ -50,25 +51,30 @@ def predict(result: FactorizationResult, uid: Id, pid: Id, author_id: Id) -> flo
 
 
 def cluster(
-    result: FactorizationResult, config: ChordConfig, seed: int = 0,
-    n_clusters: Optional[int] = None,
+    reactions: Sequence[Reaction], result: FactorizationResult, config: ChordConfig,
+    n_clusters: Optional[int] = None, seed: int = 0,
 ) -> ClusterModel:
-    """Assign opinion clusters with the default KMeans Partition adapter (§4.2)."""
+    """Deterministic spectral opinion clusters from the reaction data (§4.2)."""
     k = n_clusters or config.n_clusters
-    adapter = KMeansPartitionAdapter(n_clusters=k, seed=seed)
-    assignments = adapter.assign(list(result.x_user.keys()), result.x_user)
+    assignments = spectral_opinion_clusters(reactions, list(result.x_user.keys()), k)
     return ClusterModel.from_factorization(result, assignments)
 
 
 def bridging(
+    reactions: Sequence[Reaction],
     result: FactorizationResult,
     clusters: ClusterModel,
     post_authors: Mapping[Id, Id],
     config: ChordConfig,
-    exposure_counts: Optional[Mapping[Id, Mapping[int, float]]] = None,
+    weights: Optional[Sequence[float]] = None,
+    reception_caps: Optional[Mapping[Id, float]] = None,
 ):
-    """B_LCB (§4.2) for every post in the factorization."""
-    return BridgingScorer(config).score(result, clusters, post_authors, exposure_counts)
+    """B_LCB (§4.2) for every post — empirical IPW-shrunk per-cluster reception."""
+    if weights is None:
+        weights = np.ones(len(reactions))
+    reception = cluster_reception(reactions, weights, clusters)
+    return BridgingScorer(config).score(
+        result, clusters, post_authors, reception, reception_caps)
 
 
 def divisiveness_of(

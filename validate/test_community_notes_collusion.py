@@ -37,14 +37,8 @@ def _cfg():
 def _target_blcb(reactions, posts, post_authors, target, target_notes, cfg,
                  defense=False):
     res = M.fit(reactions, posts, cfg, seed=0)
-    clusters = M.cluster(res, cfg, seed=0)
-    ec: dict = defaultdict(lambda: defaultdict(float))
-    for r in reactions:
-        c = clusters.assignments.get(r.user_id)
-        if c is not None:
-            ec[r.post_id][c] += 1.0
-    ec = {pid: dict(d) for pid, d in ec.items()}
-    sc = M.bridging(res, clusters, post_authors, cfg, exposure_counts=ec)
+    clusters = M.cluster(reactions, res, cfg)
+    sc = M.bridging(reactions, res, clusters, post_authors, cfg)
     vals = np.array([sc.b_lcb.get(pid, np.nan) for pid in target_notes])
     frac = 0.0
     if defense:
@@ -75,7 +69,7 @@ def test_ring_attack_and_loyalty_defense_on_community_notes():
 
     # place camouflaged sybils across the real opinion clusters
     res0 = M.fit(reactions, posts, cfg, seed=0)
-    cl0 = M.cluster(res0, cfg, seed=0)
+    cl0 = M.cluster(reactions, res0, cfg)
     hosts: dict = defaultdict(list)
     for u, c in cl0.assignments.items():
         hosts[c].append(u)

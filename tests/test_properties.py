@@ -102,18 +102,16 @@ def test_determinism(seed):
 
 
 def test_permutation_and_order_invariance():
-    """FOUND GAP (left failing on purpose): B_LCB rankings are not reproducible across
-    input orderings/relabellings.
+    """B_LCB rankings are reproducible across input orderings/relabellings (F2/F3 fix).
 
-    Relabelling user/post ids and shuffling reaction order should leave the bridged-
-    support *ranking* of posts unchanged — it is the same data. It does not: mean
-    Spearman across random worlds is only ~0.72 (some worlds flip entirely). Root cause:
-    the MF initializes X/Y randomly *by index*, so reordering entities changes their
-    init and the non-convex bilinear ALS lands in a different local optimum. A
-    deterministic SVD-based init was prototyped and fixes it (0.72 -> 0.97 Spearman);
-    an order-invariant k-means helps too. Both are reverted for now because they shift
-    many *tuned* simulator results — a second finding, the init-fragility of those sim
-    claims — so applying them needs a dedicated re-validation pass. Deferred.
+    Relabelling user/post ids and shuffling reaction order leaves the bridged-support
+    ranking of posts (nearly) unchanged — it is the same data. This used to fail
+    (~0.73 Spearman) because B_LCB routed per-cluster reception through the non-convex
+    MF embedding (order-dependent local optima). It now computes reception as empirical
+    IPW-shrunk cluster means with deterministic spectral clusters, so B_LCB depends on
+    the embedding only through a deterministic partition. The small residual (~0.96,
+    not 1.0) is the λ-weighting in IPW, which is mildly MF-dependent — kept for Sybil
+    resistance.
     """
     from validate.metrics import spearman
     rhos = []

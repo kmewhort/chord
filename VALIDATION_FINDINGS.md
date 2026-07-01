@@ -47,22 +47,39 @@ a much lower operating point, e.g. a multiple of the observed baseline), or is t
 controller genuinely redundant belt-and-suspenders? Either way §9.3's prose overstated
 an *active* guard that is really a dormant safety net.
 
-### F2. B_LCB rankings are **not reproducible across input orderings** *(fix: known, disruptive)*
-`tests/test_properties.py::test_permutation_and_order_invariance`
-Relabelling ids + shuffling reaction order changes the bridged-support ranking — mean
-Spearman only **~0.73** (some worlds flip). Root cause: the MF inits `X`/`Y` randomly
-*by index*, so reordering entities changes the init and the non-convex bilinear ALS
-lands in a different local optimum. A **deterministic SVD-based init fixes it
-(0.73→0.97)**, and an order-invariant k-means helps too. *Not yet applied* because both
-shift many tuned simulator results (F3). Needs the disruptive-change pathway.
+### F2. B_LCB rankings were **not reproducible across input orderings** — ✅ FIXED (redesign)
+`tests/test_properties.py::test_permutation_and_order_invariance` (now passes, ~0.96)
+Relabelling ids + shuffling reaction order changed the ranking — mean Spearman only
+~0.73. Root cause: B_LCB routed per-cluster reception through the **non-convex bilinear
+MF embedding** (`<centroid_c, y_p>` + k-means on `x_u`), which lands in order-dependent
+local optima. **Fix landed** (research-guided; the current `‖X‖²+‖Y‖²` regularizer is
+the variational nuclear norm, so the object is convex in `L=XYᵀ` — the instability was
+fitting at fixed low rank by ALS):
+- **Reception is now empirical** — the IPW-weighted, EB-shrunk mean of each cluster's
+  observed signed reactions (`chord/model/bridging.py`, prior = global μ), so B_LCB
+  never touches `y_p`.
+- **Clusters are deterministic** — a canonical, per-column-centred spectral split of the
+  reaction matrix (`chord/model/spectral.py`), not k-means on the fragile `x_u`.
+The MF is kept only for `V(u,p)` personalization. Result: Spearman 0.73→**0.96** (the
+residual is the λ-weighting in IPW, kept for Sybil resistance), and on real data it is
+*more* faithful — CN helpful/not-helpful **AUC 0.858→0.9996**, Polis cluster ARI 0.06→
+**0.61**, `corr(B_LCB,support)` **0.81**.
 
-### F3. The finer simulator claims are **init-fragile** *(assess: robustness of the claims themselves)*
-Applying F2's fixes (SVD init, order-invariant k-means) flips several *tuned* sim
-results — firehose dilution, ring containment, M-frontier, the collusion/perf tests.
-So those claims are sensitive to clustering/MF-init details, unlike the headline
-welfare claim (robust, axis B). *Assess:* either widen their margins / average more
-seeds / re-tune after F2, or treat them as directional. This is the reason F1/F2 are
-deferred rather than landed inline.
+### F3. The finer simulator claims are **init-fragile** — partially resolved; re-validation ongoing
+The old worry was that fixing F2 would flip tuned sim results. It does move some — but
+now for a *principled* reason (empirical reception + deterministic clusters), so this is
+re-tuning, not a red herring. **Re-validation status after the F2 redesign:**
+- ✅ property/reproducibility, ✅ CN keystone (AUC 0.9996), ✅ Polis clusters (ARI 0.61),
+  ✅ Coat anchor, ✅ welfare robustness sweep, ✅ unit `test_bridging` (rewritten).
+- ⏳ **Follow-on reds (not yet re-tuned):** the collusion loyalty defense's cluster-
+  spread gate assumes a *balanced* 2-cluster split; the deterministic spectral split on
+  the dense Community-Notes core is imbalanced (~17/1325 — a weak real opinion axis), so
+  the gate reads the ring as one-cluster and doesn't fire (`test_community_notes_
+  collusion`, `test_adaptive_ring`, `test_simulator_collusion`). The distributed-ring
+  *attack* still transfers; the *defense* needs a balance-robust signal. Also
+  `test_simulator_frontier` (interior-M optimum shifted, now marginal) and
+  `test_simulator_anchor` (reception cap × empirical reception) need re-tuning. Left
+  failing on purpose pending the collusion-defense re-work.
 
 ### F4. The depth defense is **evadable by forging the depth signal** *(design/research)*
 `tests/test_adaptive_adversary.py::test_forged_depth_signal_evades_the_gate`

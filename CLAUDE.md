@@ -99,15 +99,21 @@ tests and are documented in the whitepaper's own prose):
 6. **Consumption vs. authority wall (§12)**: `UserKnobs` exposes only M/ρ/θ/ε.
    Earned quantities (λ, `q_scout`, `B(a)`) are **never** user-settable — keep it
    that way. The author budget binds to the *identity* port, not the raw account.
-7. **`B_LCB` is exposure-weighted shrinkage, not a subtractive penalty**
-   (`model/bridging.py`): each cluster's reconstructed reception is shrunk toward
-   the population mean by `n_cp/(n_cp+n0)` (empirical Bayes), then aggregated
-   (`config.bridging_aggregator`, default `"nash"` = Polis product; `"min"`/`"ede"`
-   available). The old `min_c[r̂ − βσ/√(n+1)]` penalized *under-sampled* clusters
-   (noise) and lost to `b_p`/naive-mean on real data; the shrinkage regresses thin
-   clusters to the mean so only *well-exposed* dissent lowers the score. `n_cp` must
-   be a real (propensity-corrected) **exposure** count, not a rating count.
-   Validated on Community Notes / Polis (Appendix C.5). Test: `test_bridging.py`.
+7. **`B_LCB` is empirical per-cluster reception + shrinkage, not a subtractive penalty
+   and not a bilinear reconstruction** (`model/bridging.py`): each cluster's reception
+   is the **IPW-weighted empirical mean of that cluster's observed signed reactions**
+   (`cluster_reception`), shrunk toward the prior `grand = μ` by `n_cp/(n_cp+n0)`
+   (empirical Bayes, `n_cp` = IPW-weighted rating evidence), then aggregated
+   (`config.bridging_aggregator`, default `"nash"`; `"min"`/`"ede"` available). It used
+   to reconstruct reception as `μ+b̄_c+b_a+b_p+<x̄_c,y_p>` — routing it through the
+   non-convex MF embedding made B_LCB order-irreproducible (~0.73 Spearman); the
+   empirical form is reproducible (~0.96) and *more* faithful on real data (CN AUC
+   0.9996). Opinion **clusters are deterministic** (`model/spectral.py`: per-column-
+   centred canonical spectral split), not k-means on `x_u`. The MF stays only for
+   `V(u,p)` personalization. The old `min_c[r̂ − βσ/√(n+1)]` penalized *under-sampled*
+   clusters and lost to `b_p`/naive-mean. Validated on Community Notes / Polis (App C.5).
+   Tests: `test_bridging.py`, `test_properties.py`. (Re-validation of the collusion
+   defense under the new clustering is in progress — see `VALIDATION_FINDINGS.md` F3.)
 
 ## Conventions
 

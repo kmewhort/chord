@@ -74,7 +74,7 @@ def test_community_notes_aggregator_penalty_grid(base_config):
 
     best = ("", -1.0)
     for k in (2, 4):
-        clusters = M.cluster(result, cfg, seed=0, n_clusters=k)
+        clusters = M.cluster(reactions, result, cfg, n_clusters=k)
         stats = kv.cluster_stats_for_notes(reactions, clusters.assignments, k)
         usable = [n for n in ids if n in stats]
         yk = np.array([labels[n] for n in usable])
@@ -125,7 +125,7 @@ def test_polis_aggregator_tracks_cross_group_support(base_config):
             continue
         result = M.fit(reactions, posts, cfg, seed=0)
         k = min(conv.n_groups, 4)
-        clusters = M.cluster(result, cfg, seed=0, n_clusters=k)
+        clusters = M.cluster(reactions, result, cfg, n_clusters=k)
         stats = kv.cluster_stats_for_notes(reactions, clusters.assignments, k)
         split = polis.group_split(conv)
 

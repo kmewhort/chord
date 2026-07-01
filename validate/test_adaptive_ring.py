@@ -52,8 +52,8 @@ def test_loyalty_defense_is_adaptively_robust():
     tnotes = list(sl.notes[sl.notes.author == target].noteId)
 
     res0 = M.fit(reactions, posts, cfg, seed=0)
-    cl0 = M.cluster(res0, cfg, seed=0)
-    base = float(np.nanmean([M.bridging(res0, cl0, post_authors, cfg).b_lcb.get(p, np.nan)
+    cl0 = M.cluster(reactions, res0, cfg)
+    base = float(np.nanmean([M.bridging(reactions, res0, cl0, post_authors, cfg).b_lcb.get(p, np.nan)
                              for p in tnotes]))
     hosts = defaultdict(list)
     for u, c in cl0.assignments.items():
@@ -75,14 +75,8 @@ def test_loyalty_defense_is_adaptively_robust():
             for j in rng.choice(len(tnotes), m, replace=False):   # adaptive: partial approval
                 aug.append(Reaction(sid, tnotes[j], 1.0))
         res = M.fit(aug, posts, cfg, seed=0)
-        clu = M.cluster(res, cfg, seed=0)
-        ec = defaultdict(lambda: defaultdict(float))
-        for r in aug:
-            cc = clu.assignments.get(r.user_id)
-            if cc is not None:
-                ec[r.post_id][cc] += 1.0
-        sc = M.bridging(res, clu, post_authors, cfg,
-                        exposure_counts={p: dict(d) for p, d in ec.items()})
+        clu = M.cluster(aug, res, cfg)
+        sc = M.bridging(aug, res, clu, post_authors, cfg)
         ct = CollusionTracker()
         ct.update(aug, post_authors)
         det = ct.manufactured_fraction(target, clu.assignments, clu.n_clusters)

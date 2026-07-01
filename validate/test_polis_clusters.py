@@ -41,7 +41,7 @@ def _conversation_metrics(slug, cfg):
 
     # --- (1) cluster reconstruction vs Polis groups ---
     k = min(conv.n_groups, 4)
-    clusters = M.cluster(result, cfg, seed=0, n_clusters=k)
+    clusters = M.cluster(reactions, result, cfg, n_clusters=k)
     shared = [p for p in conv.groups if f"p{p}" in clusters.assignments]
     ari = float("nan")
     if len(shared) >= 10:
@@ -51,7 +51,7 @@ def _conversation_metrics(slug, cfg):
 
     # --- (2) B_LCB vs true cross-group support; D(p) vs true spread ---
     post_authors = {pid: post.author_id for pid, post in posts.items()}
-    scores = M.bridging(result, clusters, post_authors, cfg)
+    scores = M.bridging(reactions, result, clusters, post_authors, cfg)
     div = M.divisiveness_of(result, cfg)
     split = polis.group_split(conv)  # comment-id -> per-group mean vote
 

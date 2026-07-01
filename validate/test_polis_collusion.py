@@ -39,14 +39,8 @@ def _cfg():
 
 def _score(reactions, posts, post_authors, cfg):
     res = M.fit(reactions, posts, cfg, seed=0)
-    clusters = M.cluster(res, cfg, seed=0)
-    ec: dict = defaultdict(lambda: defaultdict(float))
-    for r in reactions:
-        c = clusters.assignments.get(r.user_id)
-        if c is not None:
-            ec[r.post_id][c] += 1.0
-    ec = {pid: dict(d) for pid, d in ec.items()}
-    return M.bridging(res, clusters, post_authors, cfg, exposure_counts=ec), res, clusters
+    clusters = M.cluster(reactions, res, cfg)
+    return M.bridging(reactions, res, clusters, post_authors, cfg), res, clusters
 
 
 def test_dense_polis_resists_the_content_boost_ring():

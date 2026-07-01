@@ -32,6 +32,7 @@ from .model import (
     BridgingScorer,
     BridgingScores,
     ClusterModel,
+    cluster_reception,
     DivisivenessModel,
     FactorizationResult,
     MatrixFactorization,
@@ -56,7 +57,7 @@ from .propensity import (
 from .economy import AuthorBudgetLedger, ExplorationPool
 from .feed import Candidate, FactorContext, blended_value, greedy_assemble
 from .monitor import ConcentrationController
-from .ports.adapters import KMeansPartitionAdapter
+from .model.spectral import spectral_opinion_clusters
 
 
 @dataclass
@@ -130,12 +131,17 @@ class Chord:
         }
         users = list({rx.user_id for rx in reactions})
 
+        # Opinion clusters are computed once, deterministically, from the reaction data
+        # (§4.2) — not from the non-convex MF embedding, whose order-dependent local
+        # optima made the clusters and B_LCB irreproducible (VALIDATION_FINDINGS F2/F3).
+        assignments = spectral_opinion_clusters(reactions, users, cfg.n_clusters)
+
         # --- steps 1-3: inner actor-critic iteration (fast critic = MF; slow
         #     actor = lambda). Start lambda uniform, refine on the new geometry.
         rater_lambda: Dict[Id, float] = {u: 1.0 / max(1, len(users)) for u in users}
         result = None
-        clusters = None
         divis = None
+        weights = None
         n_inner = 0
         for it in range(self.inner_iters):
             n_inner = it + 1
@@ -152,28 +158,27 @@ class Chord:
             # step 2: whiten, recompute A and D
             divis = fit_divisiveness(result, cfg, dict(affective_signal) if affective_signal else None)
 
-            # partition (default adapter) on the new geometry
-            partitioner = KMeansPartitionAdapter(
-                n_clusters=cfg.n_clusters, seed=self.seed
-            )
-            assignments = partitioner.assign(users, result.x_user)
-            clusters = ClusterModel.from_factorization(result, assignments)
-
             # step 3: update quality-tracking lambda on the new geometry
             eig = compute_lambda(reactions, posts, result, users, cfg)
             qual = quality_tracking_weight(reactions, posts, result, cfg)
             rater_lambda = blend_lambda(eig, qual, cfg)
 
-        assert result is not None and clusters is not None and divis is not None
+        assert result is not None and divis is not None and weights is not None
+        clusters = ClusterModel.from_factorization(result, assignments)
 
-        # --- bridging scores with propensity-corrected per-cluster exposure counts
-        exposure_counts = _cluster_exposure_counts(exposures, clusters)
+        # --- bridging from empirical, IPW-weighted per-cluster reception (§4.2). Recompute
+        #     weights at the final lambda so reception matches the served estimator.
+        weights = compute_ipw_weights(
+            reactions, self.propensity_model, cfg,
+            rater_lambda=rater_lambda, exposures=exposure_index,
+        )
+        reception = cluster_reception(reactions, weights, clusters)
         reception_caps = None
         if cfg.exploration_anchor_cap:
             self.reception_anchor.update(reactions, exposures, post_authors)
             reception_caps = self.reception_anchor.caps(post_authors)
         scorer = BridgingScorer(cfg)
-        bridging = scorer.score(result, clusters, post_authors, exposure_counts, reception_caps)
+        bridging = scorer.score(result, clusters, post_authors, reception, reception_caps)
         # collusion defense (§5/§10): discount posts whose approvers are coordinated,
         # which a distributed cross-cluster ring cannot avoid (min-over-clusters can).
         if cfg.coordination_penalty > 0.0:
@@ -364,19 +369,3 @@ class Chord:
         }
 
 
-def _cluster_exposure_counts(
-    exposures: Sequence[Exposure], clusters: ClusterModel
-) -> Dict[Id, Dict[int, float]]:
-    """Propensity-corrected count n_cp of cluster-c users exposed to post p (§4.2).
-
-    Exploration exposures (known epsilon) and organic exposures both count toward
-    tested breadth; a cluster with no exposures to a post gets n_cp = 0, which
-    maximizes its B_LCB pessimism penalty.
-    """
-    counts: Dict[Id, Dict[int, float]] = defaultdict(lambda: defaultdict(float))
-    for e in exposures:
-        c = clusters.assignments.get(e.user_id)
-        if c is None:
-            continue
-        counts[e.post_id][c] += 1.0
-    return {pid: dict(cmap) for pid, cmap in counts.items()}

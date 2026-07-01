@@ -56,19 +56,12 @@ def test_blcb_recovers_community_notes_helpfulness(base_config):
 
     cfg = base_config
     result = M.fit(reactions, posts, cfg, seed=0)
-    clusters = M.cluster(result, cfg, seed=0)
+    clusters = M.cluster(reactions, result, cfg)
     post_authors = {pid: p.author_id for pid, p in posts.items()}
 
-    # Per-cluster exposure count n_cp (rating-count proxy) — the shipped shrinkage
-    # regresses thinly-exposed clusters to the mean instead of penalizing them.
-    ec: dict = defaultdict(lambda: defaultdict(float))
-    for r in reactions:
-        c = clusters.assignments.get(r.user_id)
-        if c is not None:
-            ec[r.post_id][c] += 1.0
-    ec = {pid: dict(d) for pid, d in ec.items()}
-
-    scores = M.bridging(result, clusters, post_authors, cfg, exposure_counts=ec)
+    # B_LCB = empirical IPW-shrunk per-cluster reception (built inside M.bridging from
+    # the reactions); a thinly-rated cluster regresses to the mean instead of penalized.
+    scores = M.bridging(reactions, result, clusters, post_authors, cfg)
 
     mean_rating: dict = defaultdict(float)
     counts: dict = defaultdict(int)
