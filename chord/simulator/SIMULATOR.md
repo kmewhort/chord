@@ -96,6 +96,17 @@ weaknesses; each was then chased down (tests in `tests/test_simulator_*`):
    ("from scrubbed side-info the ring is statistically identical to K independent
    fans"). RPCA is doubly wrong (the rank-1 boost lands in its low-rank part and is
    *absorbed*).
+
+   *Confirmed on real data (`validate/`):* the ring attack and the loyalty defense
+   were re-run on the real Community Notes slice — a 40-sybil ring inflates a mediocre
+   author's B_LCB −0.748→−0.180, and the loyalty defense (manufactured_fraction 0.834)
+   removes it. On Polis the same probe revealed a *difference*: dense voting makes a
+   ring a small minority of genuine support, so a 100-sybil ring (6% of voters) barely
+   moves a divisive comment and stays far below the median genuine one — dense
+   deliberation is itself a ring defense, and the content-boost ring is a *sparse*-data
+   phenomenon. The exploration-anchor's de-confounding was validated directly on Coat's
+   real random-exposure block (it cuts the MNAR selection bias 35%). See
+   `validate/test_{community_notes,polis}_collusion.py`, `validate/test_coat_anchor.py`.
 3. **Bridging↔satisfaction tradeoff — characterized** (see `test_simulator_frontier.py`).
 
 ## Layout
