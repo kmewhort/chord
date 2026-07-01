@@ -17,8 +17,8 @@ from chord.model import (
     MatrixFactorization,
     cluster_reception,
     fit_divisiveness,
-    spectral_opinion_clusters,
 )
+from chord.model.spectral import spectral_partition
 from chord.types import Id, Post, Reaction
 
 
@@ -56,8 +56,10 @@ def cluster(
 ) -> ClusterModel:
     """Deterministic spectral opinion clusters from the reaction data (§4.2)."""
     k = n_clusters or config.n_clusters
-    assignments = spectral_opinion_clusters(reactions, list(result.x_user.keys()), k)
-    return ClusterModel.from_factorization(result, assignments)
+    part = spectral_partition(reactions, list(result.x_user.keys()), k)
+    clusters = ClusterModel.from_factorization(result, part.assignments)
+    clusters.opinion_coord = part.coord
+    return clusters
 
 
 def bridging(

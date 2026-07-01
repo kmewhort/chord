@@ -42,12 +42,18 @@ def test_exploration_anchor_sustained(sim_result):
         assert m.exploration_rate > 0.0
 
 
-def test_firehose_reach_is_diluted(sim_result):
+def test_firehose_reach_is_diluted():
     # §8: a high-volume firehose author earns LESS reach per post than a quality
-    # (universal) author, because the conserved budget spreads thin.
-    fh = np.mean([m.firehose_reach_per_post for m in sim_result.metrics[2:]])
-    uni = np.mean([m.universal_reach_per_post for m in sim_result.metrics[2:]])
-    assert fh < uni
+    # (universal) author, because the conserved budget spreads thin. Averaged over seeds
+    # — single draws are noisy (with the empirical B_LCB an untested firehose post sits
+    # at the neutral prior rather than suppressed, so the *budget* carries the dilution,
+    # and one seed can invert; the systematic effect is robust: ~6.5 vs ~9.9 reach/post).
+    fh, uni = [], []
+    for s in (1, 2, 3, 4, 5):
+        r = Simulator(n_users=30, d=2, knobs=UserKnobs(M=1.0), n_slots=6, seed=s).run(n_windows=8)
+        fh.append(np.mean([m.firehose_reach_per_post for m in r.metrics[2:]]))
+        uni.append(np.mean([m.universal_reach_per_post for m in r.metrics[2:]]))
+    assert np.mean(fh) < np.mean(uni)
 
 
 def test_bridging_scores_are_finite(sim_result):

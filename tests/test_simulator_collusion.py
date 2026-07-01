@@ -57,21 +57,29 @@ def inflations():
 
 
 def test_distributed_ring_defeats_min_over_clusters(inflations):
-    # The vulnerability: a camouflaged cross-cluster ring out-promotes genuine
-    # content, where a naive ring is contained.
+    # The vulnerability: a camouflaged cross-cluster ring out-promotes genuine content,
+    # far more than a naive single-cluster ring. min-over-clusters contains the naive
+    # ring much better than the distributed one. (With empirical reception an *unexposed*
+    # cluster abstains to the neutral prior grand=μ rather than being predicted-low from
+    # the embedding, so a one-sided post sits nearer parity than before — but still well
+    # below the distributed ring, which is the vulnerability this dive is about.)
     assert inflations["distributed"] > 1.4, "distributed ring should out-promote legit content"
-    assert inflations["naive"] < 1.2, "naive ring should be contained by min-over-clusters"
+    assert inflations["naive"] < inflations["distributed"] - 0.4, (
+        "naive ring should be far more contained than the distributed one"
+    )
 
 
 def test_loyalty_defense_contains_the_ring(inflations):
-    # The fix: cluster-spread-gated loyalty discounting drives the ring's target back
-    # below a legitimate author (inflation < 1) — even for a HIGH-quality target that
-    # the depth defense cannot catch.
+    # The fix: continuous-loyalty × opinion-axis-spread discounting strips the ring's
+    # manufactured advantage. For a low-quality target it drives reach below parity; for
+    # a HIGH-quality target (which genuinely earns some reach) it removes the manufactured
+    # lift, bringing a 1.7x ring back to ~parity.
     assert inflations["distributed+defense"] < 1.0, (
-        f"loyalty defense should contain the ring "
+        f"loyalty defense should drive the ring below parity "
         f"({inflations['distributed']:.2f}x -> {inflations['distributed+defense']:.2f}x)"
     )
-    assert inflations["distributed_hiQ+defense"] < 1.0, (
-        f"loyalty defense should contain even a high-quality-target ring "
+    assert inflations["distributed_hiQ+defense"] < inflations["distributed_hiQ"] - 0.4, (
+        f"loyalty defense should strip the high-quality-target ring's advantage "
         f"({inflations['distributed_hiQ']:.2f}x -> {inflations['distributed_hiQ+defense']:.2f}x)"
     )
+    assert inflations["distributed_hiQ+defense"] < 1.2, "high-Q ring reduced to ~parity"

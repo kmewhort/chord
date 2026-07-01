@@ -44,7 +44,7 @@ def _target_blcb(reactions, posts, post_authors, target, target_notes, cfg,
     if defense:
         ct = CollusionTracker()
         ct.update(reactions, post_authors)
-        frac = ct.manufactured_fraction(target, clusters.assignments, clusters.n_clusters)
+        frac = ct.manufactured_fraction(target, opinion_coord=clusters.opinion_coord)
         vals = vals - LOYALTY_PENALTY * frac
     return float(np.nanmean(vals)), frac
 

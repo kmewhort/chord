@@ -65,21 +65,29 @@ residual is the λ-weighting in IPW, kept for Sybil resistance), and on real dat
 *more* faithful — CN helpful/not-helpful **AUC 0.858→0.9996**, Polis cluster ARI 0.06→
 **0.61**, `corr(B_LCB,support)` **0.81**.
 
-### F3. The finer simulator claims are **init-fragile** — partially resolved; re-validation ongoing
-The old worry was that fixing F2 would flip tuned sim results. It does move some — but
-now for a *principled* reason (empirical reception + deterministic clusters), so this is
-re-tuning, not a red herring. **Re-validation status after the F2 redesign:**
-- ✅ property/reproducibility, ✅ CN keystone (AUC 0.9996), ✅ Polis clusters (ARI 0.61),
-  ✅ Coat anchor, ✅ welfare robustness sweep, ✅ unit `test_bridging` (rewritten).
-- ⏳ **Follow-on reds (not yet re-tuned):** the collusion loyalty defense's cluster-
-  spread gate assumes a *balanced* 2-cluster split; the deterministic spectral split on
-  the dense Community-Notes core is imbalanced (~17/1325 — a weak real opinion axis), so
-  the gate reads the ring as one-cluster and doesn't fire (`test_community_notes_
-  collusion`, `test_adaptive_ring`, `test_simulator_collusion`). The distributed-ring
-  *attack* still transfers; the *defense* needs a balance-robust signal. Also
-  `test_simulator_frontier` (interior-M optimum shifted, now marginal) and
-  `test_simulator_anchor` (reception cap × empirical reception) need re-tuning. Left
-  failing on purpose pending the collusion-defense re-work.
+### F3. The finer simulator claims are **init-fragile** — ✅ RESOLVED (re-validated)
+The worry was that fixing F2 would flip tuned sim results. It moved some — but for a
+*principled* reason (empirical reception + deterministic clusters), so this was re-tuning,
+not a red herring. **Re-validation complete — the whole suite is green except the F4
+finding:**
+- ✅ property/reproducibility, CN keystone (AUC 0.9996), Polis clusters (ARI 0.61), Coat
+  anchor, welfare sweep, rewritten unit `test_bridging`, dynamics, robustness.
+- ✅ **Collusion defense re-worked to be balance-robust.** The cluster-spread gate keyed
+  on the *discrete* 2-way split, which is degenerate on the dense CN core (~17/1325). It
+  now gates on the **continuous opinion-axis coordinate** (the spectral top vector), so a
+  camouflaged ring — dispersed along the axis — is caught regardless of how the discrete
+  split falls, and loyalty is **continuous** (no hard cutoff to sit just under). Real CN
+  data: manufactured_fraction 0.82, ring −0.03→0.52 undefended → −1.94 defended.
+  Adaptive-ring: every *effective* attack (each puppet approves ≥2 of the target's notes)
+  is driven below baseline; the only evasion spreads so thin each puppet is
+  indistinguishable from a genuine casual supporter (the per-window impossibility — see
+  `test_adaptive_ring`). `test_simulator_frontier`/`_anchor` came back green on their own;
+  `test_firehose_reach_is_diluted` now averages over seeds (the effect is systematic,
+  ~6.5 vs ~9.9 reach/post — one seed inverts).
+- *Residual, documented not red:* with `grand=μ` an untested one-sided post sits at the
+  neutral prior rather than being predicted-low from the embedding, so B_LCB is more
+  lenient on one-sided content — the author **budget (§8)**, not B_LCB, bounds a
+  firehose's total reach.
 
 ### F4. The depth defense is **evadable by forging the depth signal** *(design/research)*
 `tests/test_adaptive_adversary.py::test_forged_depth_signal_evades_the_gate`

@@ -57,7 +57,7 @@ from .propensity import (
 from .economy import AuthorBudgetLedger, ExplorationPool
 from .feed import Candidate, FactorContext, blended_value, greedy_assemble
 from .monitor import ConcentrationController
-from .model.spectral import spectral_opinion_clusters
+from .model.spectral import spectral_partition
 
 
 @dataclass
@@ -134,7 +134,8 @@ class Chord:
         # Opinion clusters are computed once, deterministically, from the reaction data
         # (§4.2) — not from the non-convex MF embedding, whose order-dependent local
         # optima made the clusters and B_LCB irreproducible (VALIDATION_FINDINGS F2/F3).
-        assignments = spectral_opinion_clusters(reactions, users, cfg.n_clusters)
+        partition = spectral_partition(reactions, users, cfg.n_clusters)
+        assignments = partition.assignments
 
         # --- steps 1-3: inner actor-critic iteration (fast critic = MF; slow
         #     actor = lambda). Start lambda uniform, refine on the new geometry.
@@ -165,6 +166,7 @@ class Chord:
 
         assert result is not None and divis is not None and weights is not None
         clusters = ClusterModel.from_factorization(result, assignments)
+        clusters.opinion_coord = partition.coord
 
         # --- bridging from empirical, IPW-weighted per-cluster reception (§4.2). Recompute
         #     weights at the final lambda so reception matches the served estimator.
@@ -196,7 +198,7 @@ class Chord:
                 v = bridging.b_lcb.get(pid)
                 if a is not None and v is not None and np.isfinite(v):
                     frac = self.collusion.manufactured_fraction(
-                        a, clusters.assignments, clusters.n_clusters)
+                        a, opinion_coord=clusters.opinion_coord)
                     bridging.b_lcb[pid] = v - cfg.collusion_loyalty_penalty * frac
         realized_strength = dict(bridging.b_lcb)
         # replace -inf (unseen) with a low finite floor for downstream arithmetic

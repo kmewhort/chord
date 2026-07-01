@@ -99,8 +99,13 @@ weaknesses; each was then chased down (tests in `tests/test_simulator_*`):
 
    *Confirmed on real data (`validate/`):* the ring attack and the loyalty defense
    were re-run on the real Community Notes slice — a 40-sybil ring inflates a mediocre
-   author's B_LCB −0.748→−0.180, and the loyalty defense (manufactured_fraction 0.834)
-   removes it. On Polis the same probe revealed a *difference*: dense voting makes a
+   author's B_LCB and the loyalty defense (manufactured_fraction ~0.82) removes it. The
+   gate now measures dispersion on the **continuous opinion-axis coordinate** (the
+   spectral top vector), not the discrete cluster label — robust when the 2-way split is
+   degenerate on weakly-divided data — and loyalty is **continuous** (no cutoff to sit
+   just under). The one evasion is a ring so thin each puppet approves ≲ one of the
+   target's posts, at which point it is indistinguishable from genuine dispersed support
+   (the per-window impossibility). On Polis the same probe revealed a *difference*: dense voting makes a
    ring a small minority of genuine support, so a 100-sybil ring (6% of voters) barely
    moves a divisive comment and stays far below the median genuine one — dense
    deliberation is itself a ring defense, and the content-boost ring is a *sparse*-data

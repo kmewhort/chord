@@ -58,6 +58,7 @@ class CollusionTracker:
 
     def manufactured_fraction(
         self, author: Id,
+        opinion_coord: Optional[Mapping[Id, float]] = None,
         cluster_of: Optional[Mapping[Id, int]] = None,
         n_clusters: int = 2,
     ) -> float:
@@ -67,12 +68,17 @@ class CollusionTracker:
         is a large bloc that all approve every one of the target's posts, so they pile
         up near the maximum support level, whereas genuine approval is graded. We take
         the mass of support at ≥ ``loyalty_threshold`` of the max, then — crucially —
-        **gate it by how opinion-dispersed the loyal bloc is** (``cluster_of``). A
-        camouflaged ring spreads its puppets across *every* opinion cluster (that is
-        how it fakes cross-cluster support), so its loyal bloc has high cluster-spread
-        entropy; a genuine loyal fanbase is opinion-*coherent* (one cluster) and is not
-        penalized. This is the anomaly gate — behavioral loyalty × opinion dispersion —
-        that separates a ring from a passionate niche following.
+        **gate it by how opinion-dispersed the loyal bloc is**. A camouflaged ring
+        spreads its puppets across the whole opinion axis (that is how it fakes
+        cross-cluster support); a genuine loyal fanbase is opinion-*coherent* and is not
+        penalized. This is the anomaly gate — behavioral loyalty × opinion dispersion.
+
+        Dispersion is measured on the **continuous** opinion axis ``opinion_coord`` (the
+        spectral coordinate): the std of the loyal bloc's positions relative to the
+        population std. This is robust to a *degenerate* discrete split (on weakly-
+        divided data the 2-way clustering can be ~all-one-cluster, which made the old
+        cluster-entropy gate read every bloc as coherent). ``cluster_of`` is a legacy
+        discrete fallback used only when no coordinate is supplied.
         """
         support = self._support.get(author, {})
         if not support:
@@ -81,19 +87,35 @@ class CollusionTracker:
         max_s = max(support.values())
         if total <= 0.0 or max_s < self.min_evidence:
             return 0.0
-        cutoff = self.loyalty_threshold * max_s
-        loyal_raters = [r for r, s in support.items() if s >= cutoff and s >= self.min_evidence]
-        loyal_mass = sum(support[r] for r in loyal_raters)
-        frac = loyal_mass / total
-        if cluster_of is not None and n_clusters > 1 and loyal_raters:
-            labels = [cluster_of.get(r) for r in loyal_raters]
+        # Continuous loyalty weight, NOT a hard cutoff: an adaptive ring can sit just
+        # under a threshold (approve 70% of a target's posts to dodge a 75% cutoff) and
+        # still inflate. loyalty(r) = support/max ramps smoothly, so partial-approval
+        # still counts — there is no cliff to exploit. (A ring that instead spreads so
+        # thin each puppet approves ≲ one of the target's posts falls below min_evidence,
+        # but then every puppet is indistinguishable from a genuine casual supporter — a
+        # per-window impossibility, not a tuning gap; see test_adaptive_ring.)
+        raters = [r for r, s in support.items() if s >= self.min_evidence]
+        if not raters:
+            return 0.0
+        loyalty = {r: (support[r] / max_s) for r in raters}
+        mass = sum(support[r] * loyalty[r] for r in raters)   # loyalty-weighted support
+        frac = mass / total
+        if opinion_coord is not None and len(raters) >= 2:
+            coords = np.array([opinion_coord[r] for r in raters if r in opinion_coord])
+            wts = np.array([support[r] * loyalty[r] for r in raters if r in opinion_coord])
+            pop_c = np.array([v for v in opinion_coord.values()])
+            if coords.size >= 2 and pop_c.size >= 2 and wts.sum() > 0 and pop_c.std() > 1e-9:
+                m = np.average(coords, weights=wts)
+                wstd = float(np.sqrt(np.average((coords - m) ** 2, weights=wts)))
+                spread = min(1.0, wstd / float(pop_c.std()))   # concentrated fanbase → ~0
+                frac *= spread
+        elif cluster_of is not None and n_clusters > 1:
+            labels = [cluster_of.get(r) for r in raters if support[r] >= self.loyalty_threshold * max_s]
             labels = [c for c in labels if c is not None]
             if labels:
                 counts = np.array(list(Counter(labels).values()), dtype=float)
                 p = counts / counts.sum()
-                entropy = float(-(p * np.log(p)).sum())
-                spread = entropy / np.log(n_clusters)   # 1 = spans clusters evenly
-                frac *= spread                           # coherent fanbase → ~0
+                frac *= float(-(p * np.log(p)).sum()) / np.log(n_clusters)
         return float(frac)
 
 

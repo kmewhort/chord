@@ -88,6 +88,7 @@ class ClusterModel:
     centroids: np.ndarray        # (n_clusters, d) x_bar_c
     mean_bias: np.ndarray        # (n_clusters,) b_bar_c
     n_clusters: int
+    opinion_coord: Dict[Id, float] = field(default_factory=dict)  # continuous spectral axis
 
     @staticmethod
     def from_factorization(
@@ -151,10 +152,12 @@ class BridgingScorer:
         """
         if post_id not in result.y_post:
             return None, None
-        # Prior is the reproducible global mean μ, not μ+b_a+b_p: the MF biases carry
-        # the embedding's small order-dependence, and on real data the empirical cluster
-        # means already carry the post/author signal (grand=μ scored AUC 0.998). Thin
-        # clusters therefore regress to the population mean — "not credited until tested."
+        # Prior is the reproducible global mean μ, not μ+b_a+b_p: the MF biases carry the
+        # embedding's order-dependence (they drop reproducibility to ~0.85), and on real
+        # data the empirical cluster means already carry the post/author signal (grand=μ
+        # scored AUC 0.9996). Thin clusters regress to the population mean — "not credited
+        # until tested." (Trade-off: this is more lenient on untested one-sided content;
+        # the author budget §8, not B_LCB, is what bounds a firehose's total reach.)
         grand = result.mu
         cfg = self.config
         K = clusters.n_clusters

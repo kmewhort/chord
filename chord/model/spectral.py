@@ -17,6 +17,7 @@ B_LCB aggregates symmetrically over clusters (``min``/``nash``/``ede``).
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Dict, List, Sequence
 
 import numpy as np
@@ -24,22 +25,46 @@ import numpy as np
 from ..types import Id, Reaction
 
 
+@dataclass
+class SpectralPartition:
+    """Deterministic opinion clustering plus the continuous top-axis coordinate.
+
+    ``coord[u]`` is user u's position on the primary opinion axis (the top canonical
+    singular vector). The collusion gate uses this *continuous* spread rather than the
+    discrete ``assignments`` because the 2-way split can be degenerate on weakly-divided
+    data (e.g. the dense Community-Notes core), while the coordinate keeps full
+    resolution — a camouflaged ring spans the axis, a coherent fanbase is concentrated.
+    """
+
+    assignments: Dict[Id, int]
+    coord: Dict[Id, float] = field(default_factory=dict)
+
+
 def spectral_opinion_clusters(
     reactions: Sequence[Reaction], users: Sequence[Id], n_clusters: int
 ) -> Dict[Id, int]:
     """Assign each user to an opinion cluster in ``[0, n_clusters)``, deterministically."""
+    return spectral_partition(reactions, users, n_clusters).assignments
+
+
+def spectral_partition(
+    reactions: Sequence[Reaction], users: Sequence[Id], n_clusters: int
+) -> SpectralPartition:
+    """Deterministic opinion partition + continuous opinion-axis coordinate."""
     users = list(users)
     nu = len(users)
     if n_clusters <= 1 or nu <= n_clusters:
         # trivial/degenerate: a stable, order-invariant fallback keyed on the id itself
-        return {u: (i % max(1, n_clusters)) for i, u in enumerate(_stable(users))}
+        return SpectralPartition(
+            {u: (i % max(1, n_clusters)) for i, u in enumerate(_stable(users))},
+            {u: 0.0 for u in users})
 
     posts = _stable({r.post_id for r in reactions})
     ui = {u: i for i, u in enumerate(users)}
     pj = {p: j for j, p in enumerate(posts)}
     npost = len(posts)
     if npost < 2:
-        return {u: 0 for u in users}
+        return SpectralPartition({u: 0 for u in users}, {u: 0.0 for u in users})
 
     # reaction matrix, centred **per column** (subtract each post's observed mean, ~ b_p)
     # so the top singular direction is the *opinion* axis, not post popularity; missing
@@ -62,7 +87,9 @@ def spectral_opinion_clusters(
     t = int(min(max(1, n_clusters - 1), min(nu, npost) - 1))     # embedding dimension
     X = _canonical_left_singular_vectors(M, t)
     labels = _deterministic_kmeans(X, n_clusters)
-    return {users[i]: int(labels[i]) for i in range(nu)}
+    return SpectralPartition(
+        {users[i]: int(labels[i]) for i in range(nu)},
+        {users[i]: float(X[i, 0]) for i in range(nu)})
 
 
 def _stable(ids) -> List:
