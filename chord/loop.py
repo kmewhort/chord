@@ -35,6 +35,7 @@ from .model import (
     DivisivenessModel,
     FactorizationResult,
     MatrixFactorization,
+    coordination_scores,
     fit_divisiveness,
 )
 from .rater import (
@@ -158,6 +159,14 @@ class Chord:
         exposure_counts = _cluster_exposure_counts(exposures, clusters)
         scorer = BridgingScorer(cfg)
         bridging = scorer.score(result, clusters, post_authors, exposure_counts)
+        # collusion defense (§5/§10): discount posts whose approvers are coordinated,
+        # which a distributed cross-cluster ring cannot avoid (min-over-clusters can).
+        if cfg.coordination_penalty > 0.0:
+            coord = coordination_scores(reactions)
+            for pid, score in coord.items():
+                v = bridging.b_lcb.get(pid)
+                if v is not None and np.isfinite(v):
+                    bridging.b_lcb[pid] = v - cfg.coordination_penalty * score
         realized_strength = dict(bridging.b_lcb)
         # replace -inf (unseen) with a low finite floor for downstream arithmetic
         for pid, v in realized_strength.items():

@@ -6,6 +6,7 @@ divisiveness D(p) (§4.1), and the per-cluster B_LCB tested bridged support (§4
 from .factorization import FactorizationResult, MatrixFactorization
 from .divisiveness import DivisivenessModel, fit_divisiveness
 from .bridging import BridgingScorer, BridgingScores, ClusterModel
+from .coordination import coordination_scores
 
 __all__ = [
     "MatrixFactorization",
@@ -15,4 +16,5 @@ __all__ = [
     "BridgingScorer",
     "BridgingScores",
     "ClusterModel",
+    "coordination_scores",
 ]

@@ -119,6 +119,12 @@ class ChordConfig:
     # to honest ranking.
     sybil_out_diversity: bool = True
     out_diversity_floor: float = 0.0   # floor on the transmit weight (0 = full defense)
+    # Collusion defense (§5/§10): subtract `coordination_penalty · coordination(p)`
+    # from B_LCB, where coordination(p) ∈ [0,1] is how correlated a post's approvers
+    # are. A *distributed* sybil ring (puppets camouflaged across clusters, all
+    # boosting one target) fakes cross-cluster support that min-over-clusters misses,
+    # but cannot hide that its boosters co-approve in lockstep. 0 ⇒ off.
+    coordination_penalty: float = 0.0
 
     # --- Scout precision (§5) ---
     scout_alpha: float = 0.5  # rank-decay in q_scout
