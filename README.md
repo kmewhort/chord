@@ -148,7 +148,3 @@ global convergence of the coupled estimator is monitored, not proven; and the
 high-precision collusive clique is not defeated. The ports ship only the crude
 default adapters — rich adapters (verified/ZK identity, portable pods, external
 Polis clustering) are left as integration slots, exactly as §3/§11 describe.
-
-## License
-
-AGPL-3.0-or-later (matching the Ethelo engine referenced by the whitepaper).

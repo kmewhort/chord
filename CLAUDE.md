@@ -1,0 +1,131 @@
+# CLAUDE.md
+
+Orientation for agents working on this repo. Read this first, then skim
+`README.md` (user-facing) and the whitepaper
+`strength-ranked-attention-whitepaper-2.md` (the spec — code is faithful to it
+section-by-section).
+
+## What this is
+
+A reference Python implementation of **CHORD**, a bridging, attention-economy
+feed-ranking algorithm. It ranks content by *tested cross-cluster support net of
+divisiveness* instead of engagement. The whitepaper is the source of truth; every
+module maps to a paper section and cites it in its docstring (e.g. `§4.2`, `§6.2`).
+
+The package is pure `numpy`/`scipy` — no ML frameworks, no network calls, no
+datasets. Everything runs on modest hardware, by design (the fediverse target).
+
+## Commands
+
+```bash
+pip install -e '.[test]'      # numpy, scipy, pytest
+pytest -q                     # full suite (~110+ tests, ~8s)
+python -m examples.demo       # runnable demo of the three headline claims
+```
+
+- Python ≥ 3.9. `pyproject.toml` sets `filterwarnings = ["error::RuntimeWarning"]`
+  — **numpy RuntimeWarnings fail the suite**. If you introduce a divide-by-zero or
+  overflow, guard it (see the `col_safe`/`row_safe`/`counts_safe` patterns).
+
+## Repo layout (paper → code)
+
+| Paper | Module | Notes |
+|---|---|---|
+| §4.1 | `chord/model/factorization.py` | Weighted biased MF via ALS (`MatrixFactorization` → `FactorizationResult`) |
+| §4.1 | `chord/model/divisiveness.py` | Whitening, divide-weighting `A`, `D(p)=yᵀAy` |
+| §4.2 | `chord/model/bridging.py` | `ClusterModel`, `BridgingScorer` → `B_LCB` |
+| §5   | `chord/rater/eigentrust.py`, `quality.py`, `scout.py` | λ, quality-tracking, `q_scout` |
+| §8   | `chord/rater/recycling.py` | `λ_eff` influence recycling |
+| §6   | `chord/propensity/` | `base` interface, `models` (menu), `ipw`, `doubly_robust` |
+| §7.1/7.3 | `chord/feed/value.py` | `value()` = V(u,p); factor vector + `blended_value` |
+| §7.2 | `chord/feed/assembly.py` | `greedy_assemble` (submodular, budget, floor) |
+| §8   | `chord/economy/budget.py`, `exploration.py` | `AuthorBudgetLedger`, `ExplorationPool` |
+| §9.1 | `chord/loop.py` | `Chord` — `fit_window` (learning) + `rank` (serving) |
+| §9.3 | `chord/monitor.py` | `N_eff`, `Gini`, `ConcentrationController`, endo/exo shift |
+| §3/App D | `chord/ports/` | `base` protocols + `adapters` (crude defaults only) |
+| App C.3 | `chord/eval/mnar_harness.py` | Semi-synthetic MNAR experiment |
+| App C.4 | `chord/simulator/` | `population`, `content` (authors), `response`, `engine` |
+
+`chord/types.py` holds the shared dataclasses (`Post`, `Reaction`, `Exposure`,
+`ReactionKind`). `chord/config.py` holds `ChordConfig` (system/estimator params)
+and `UserKnobs` (the free consumption knobs M/ρ/θ/ε — see the §12 wall below).
+
+## The two entry-point flows (`chord/loop.py`)
+
+- `Chord.fit_window(reactions, posts, exposures, ...)` — the per-window **learning
+  plane**. Runs the §9.1 steps: inner actor–critic loop (IPW-weighted MF fit →
+  whiten/`A`/`D` → clusters → quality-tracking λ, iterated `inner_iters` times),
+  then `B_LCB`, scout, budget replenishment, Thompson updates, recycling → `λ_eff`,
+  then the concentration controller. Produces a `WindowState`.
+- `Chord.rank(user_id, candidates, knobs, n_slots)` — the per-request **serving
+  plane**. Scores `V(u,p)` with the viewer's knobs, routes unseen posts to the
+  exploration pool, and calls `greedy_assemble`. Requires a prior `fit_window`.
+
+## Non-obvious invariants — don't silently break these
+
+These are the subtle spots (several were bugs during the first build; all now have
+tests and are documented in the whitepaper's own prose):
+
+1. **EigenTrust `T` is row-stochastic** (`rater/eigentrust.py`): each *rater's
+   outgoing* trust sums to 1. Column-normalizing (author-incoming) lets a Sybil
+   with one dedicated booster inherit that booster's full weight → defeats Sybil
+   starvation. Test: `test_adversarial.py::test_fresh_sybil_gets_minimal_trust`.
+2. **IPW weights are rescaled to mean 1** (`propensity/ipw.py`, `normalize=True`).
+   λ is a normalized distribution, so raw weights are O(1/|E|); the MF's fixed
+   embedding regularization would then swamp the data and collapse embeddings to
+   zero. SNIPW is scale-invariant so this changes nothing statistically.
+3. **`ρ` is applied exactly once** (`feed/value.py`): `D(p)` uses `A` at `ρ=1`;
+   `ρ` multiplies the penalty term in `V`. Don't also scale `A` by `ρ`.
+4. **Exploration floor preserves positivity**: `greedy_assemble` uses
+   `ceil(εN)` (hard floor never rounds to 0); the simulator's randomized anchor
+   uses *stochastic* rounding (correct expected rate). Both protect `π ≥ ε > 0`,
+   which §6.2 identifiability depends on. `ChordConfig.epsilon_min > 0` is
+   validated for the same reason.
+5. **Budget replenishment is rectified + clamped** (`economy/budget.py`):
+   `[Φ]₊` and clip to `[0, budget_max]`. A divisive post must not drain `B₀` or
+   drive `B(a)` negative.
+6. **Consumption vs. authority wall (§12)**: `UserKnobs` exposes only M/ρ/θ/ε.
+   Earned quantities (λ, `q_scout`, `B(a)`) are **never** user-settable — keep it
+   that way. The author budget binds to the *identity* port, not the raw account.
+
+## Conventions
+
+- **Ids are opaque hashables** (`Id = Hashable`) — ints in tests, strings in the
+  simulator. Don't assume a type.
+- **Determinism**: anything stochastic takes a `seed`; `np.random.default_rng` only.
+  Tests rely on this. `Date`/wall-clock is never used for logic.
+- **Ports pattern**: each port is a `Protocol` in `ports/base.py` with a crude
+  default adapter in `ports/adapters.py`. Rich adapters (verified/ZK identity,
+  Solid/ATProto pods, external Polis clustering) are intentionally *not* built —
+  they're integration slots. Add new adapters alongside the defaults; don't make
+  the core depend on them.
+- **Docstrings cite the paper.** When you add/change math, cite the section and, if
+  it diverges from the paper, update the whitepaper prose too (the user prefers
+  fixes baked into the relevant section, not a separate errata list).
+
+## Testing approach
+
+- `tests/conftest.py` provides the canonical bipolar toy world (10 users, 2 poles,
+  3 posts: universal A, partisan B/C). Reuse it.
+- Unit tests per module; **broader tests** assert the paper's *claims* reproduce:
+  `test_loop_integration.py` (keystone + M dial + budget end-to-end),
+  `test_simulator.py` (closed-loop stability, firehose dilution, exploration
+  sustained), `test_mnar.py` (IPW recovers ranking under MNAR; identifiability
+  fails as the anchor → 0), `test_adversarial.py` (Sybil/brigade).
+- MNAR/simulator assertions are averaged over seeds to test the *systematic*
+  effect, not a single noisy draw — keep that if you touch them.
+
+## What's deliberately not here
+
+- No dataset loaders. Appendix C lists real datasets (Community Notes, Polis,
+  Yahoo!R3/Coat/KuaiRand, Reddit, etc.); the `eval/` harness is semi-synthetic
+  only. Real-data validation is future work.
+- No serving/HTTP layer, no Mastodon/ATProto integration — CHORD is the
+  valuation-and-allocation core; retrieval and presentation stay upstream/downstream.
+- Rich port adapters (see Conventions).
+
+## Working agreement (from the task setup)
+
+- Develop on branch **`claude/whitepaper-project-impl-245yuo`**; push there.
+- Don't open a PR unless the user asks.
+- Run `pytest -q` before committing; keep the suite green.
