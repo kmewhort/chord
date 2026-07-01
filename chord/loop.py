@@ -182,7 +182,17 @@ class Chord:
             reactions, self.propensity_model, cfg,
             rater_lambda=rater_lambda, exposures=exposure_index,
         )
-        reception = cluster_reception(reactions, weights, clusters)
+        # E5a (§13#10): down-weight OUT_OF_BAND reactions for the authority signal — a
+        # ring boosting a low-reach target could not have been served it by the ranker/ε,
+        # so its self-asserted boosts are throttled. (Personalization still uses them.)
+        auth_weights = weights
+        if cfg.authority_out_of_band_weight != 1.0:
+            oob = np.array([
+                exposure_index.get((r.user_id, r.post_id)) is not None
+                and exposure_index[(r.user_id, r.post_id)].source == ExposureSource.OUT_OF_BAND
+                for r in reactions])
+            auth_weights = weights * np.where(oob, cfg.authority_out_of_band_weight, 1.0)
+        reception = cluster_reception(reactions, auth_weights, clusters)
 
         # estimated content depth q_p on the vouch channel (§10) — earned, not author-set.
         # λ-weighted so a fresh sybil's vouch counts ~0; opinion clusters are shared.

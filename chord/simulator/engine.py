@@ -293,10 +293,12 @@ class Simulator:
                                                           source=ExposureSource.ORGANIC, propensity=0.5))
                                 if kind is not None:
                                     reactions.append(self._reaction(spid, cp.id, kind, w, react_rng))
-                    # the attack itself: boost the target's posts
+                    # the attack itself: boost the target's posts. The target is
+                    # low-reach, so the ranker/ε never delivered it to the puppet — the
+                    # boost is OUT_OF_BAND (self-asserted), the signature E5a keys on.
                     for tp in target_new:
                         exposures.append(Exposure(spid, tp.id, timestamp=float(w),
-                                                  source=ExposureSource.ORGANIC, propensity=0.5))
+                                                  source=ExposureSource.OUT_OF_BAND, propensity=0.5))
                         reactions.append(Reaction(spid, tp.id,
                                                   DEFAULT_REACTION_VALUES[ReactionKind.BOOST],
                                                   kind=ReactionKind.BOOST,

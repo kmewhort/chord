@@ -96,6 +96,10 @@ class ChordConfig:
     # so shallow "bridging-bait" cannot be crowned. Both 0 ⇒ off (needs a signal).
     depth_reward: float = 0.0
     depth_gate: float = 0.0
+    # E5a (§13#10): down-weight reactions NOT preceded by a ranker/ε delivery (source
+    # OUT_OF_BAND) for the AUTHORITY signal B_LCB — a low-reach ring must route out-of-
+    # band, so this throttles it to the commons rate ε. 1.0 = off; ~0.05 = near-zero.
+    authority_out_of_band_weight: float = 1.0
     n_clusters: int = 2  # default Partition adapter cluster count
     # Retained for the legacy subtractive-LCB path and external references; the
     # default shrinkage bound (above) does not use them.

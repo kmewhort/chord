@@ -52,6 +52,7 @@ class ExposureSource(Enum):
 
     ORGANIC = "organic"
     EXPLORATION = "exploration"
+    OUT_OF_BAND = "out_of_band"  # reaction not preceded by a ranker/ε delivery (§13#10)
 
 
 @dataclass(frozen=True)
