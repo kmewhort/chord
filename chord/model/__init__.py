@@ -7,6 +7,7 @@ from .factorization import FactorizationResult, MatrixFactorization
 from .divisiveness import DivisivenessModel, fit_divisiveness
 from .bridging import BridgingScorer, BridgingScores, ClusterModel
 from .coordination import CollusionTracker, coordination_scores
+from .reception_anchor import ExplorationAnchor
 
 __all__ = [
     "MatrixFactorization",
@@ -18,4 +19,5 @@ __all__ = [
     "ClusterModel",
     "coordination_scores",
     "CollusionTracker",
+    "ExplorationAnchor",
 ]

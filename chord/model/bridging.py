@@ -109,6 +109,7 @@ class BridgingScorer:
         result: FactorizationResult,
         clusters: ClusterModel,
         exposure_counts: Optional[Mapping[int, float]] = None,
+        reception_cap: Optional[float] = None,
     ) -> float:
         """B_LCB for a single post (§4.2, shrinkage form — Appendix C.5).
 
@@ -146,6 +147,11 @@ class BridgingScorer:
         ])
         w = n_cp / (n_cp + cfg.bridging_shrinkage_n0)   # empirical-Bayes trust in each cluster
         r_shrunk = grand + w * (r_hat - grand)
+        if reception_cap is not None and np.isfinite(reception_cap):
+            # Cap each cluster's reception at the unconfounded exploration-anchored
+            # upper bound: a distributed ring's common-mode lift of organic reception
+            # above what random exposure reveals is discarded (§13.10, §6.2).
+            r_shrunk = np.minimum(r_shrunk, reception_cap)
         return float(self._aggregate(r_shrunk))
 
     def _aggregate(self, r: np.ndarray) -> float:
@@ -179,13 +185,15 @@ class BridgingScorer:
         clusters: ClusterModel,
         post_authors: Mapping[Id, Id],
         exposure_counts: Optional[Mapping[Id, Mapping[int, float]]] = None,
+        reception_caps: Optional[Mapping[Id, float]] = None,
     ) -> BridgingScores:
         """Score every post in the factorization."""
         out = BridgingScores()
         for pid in result.y_post:
             author = post_authors.get(pid)
             ec = None if exposure_counts is None else exposure_counts.get(pid)
-            out.b_lcb[pid] = self.score_post(pid, author, result, clusters, ec)
+            cap = None if reception_caps is None else reception_caps.get(pid)
+            out.b_lcb[pid] = self.score_post(pid, author, result, clusters, ec, cap)
             out.b_scalar[pid] = result.b_post.get(pid, 0.0)
             # cache the per-cluster receptions for diagnostics / monitoring
             y = result.y_post[pid]

@@ -131,6 +131,12 @@ class ChordConfig:
     # from raters who approve nearly *all* its posts window-after-window — the one
     # signature a camouflaged distributed ring cannot erase. 0 ⇒ off.
     collusion_loyalty_penalty: float = 0.0
+    # Exploration-anchor cap (§6.2/§13.10): cap each cluster's reconstructed reception
+    # at the upper confidence bound of the author's reception among *exploration*
+    # (uniform-random, unconfounded) exposures. Discards a ring's common-mode organic
+    # lift, K-independently. Needs enough exploration traffic (a higher epsilon floor)
+    # to bind; misses safely (never false-positives) when evidence is thin. False ⇒ off.
+    exploration_anchor_cap: bool = False
 
     # --- Scout precision (§5) ---
     scout_alpha: float = 0.5  # rank-decay in q_scout

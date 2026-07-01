@@ -36,6 +36,7 @@ from .model import (
     FactorizationResult,
     MatrixFactorization,
     CollusionTracker,
+    ExplorationAnchor,
     coordination_scores,
     fit_divisiveness,
 )
@@ -100,6 +101,7 @@ class Chord:
         self.exploration = ExplorationPool(self.config, seed=seed)
         self.controller = ConcentrationController(self.config)
         self.collusion = CollusionTracker()   # rolling loyal-bloc detector (§13.10)
+        self.reception_anchor = ExplorationAnchor()   # exploration-anchored cap (§6.2/§13.10)
         self.state: Optional[WindowState] = None
 
     # ------------------------------------------------------------- learning
@@ -159,8 +161,12 @@ class Chord:
 
         # --- bridging scores with propensity-corrected per-cluster exposure counts
         exposure_counts = _cluster_exposure_counts(exposures, clusters)
+        reception_caps = None
+        if cfg.exploration_anchor_cap:
+            self.reception_anchor.update(reactions, exposures, post_authors)
+            reception_caps = self.reception_anchor.caps(post_authors)
         scorer = BridgingScorer(cfg)
-        bridging = scorer.score(result, clusters, post_authors, exposure_counts)
+        bridging = scorer.score(result, clusters, post_authors, exposure_counts, reception_caps)
         # collusion defense (§5/§10): discount posts whose approvers are coordinated,
         # which a distributed cross-cluster ring cannot avoid (min-over-clusters can).
         if cfg.coordination_penalty > 0.0:
