@@ -94,6 +94,78 @@ semi-synthetic recipe is only valid on a genuinely MAR/near-complete base matrix
 run on organically-MNAR data it is self-defeating. §6/C.3 should say so explicitly,
 and the MovieLens row in the C.1 table should be qualified.
 
+## Validated candidate fixes (prototyped in `validate/experiments/`)
+
+After a literature survey (trust-metric + welfare/risk/robust-statistics math), the two
+headline findings (F1, F2) were prototyped against the *same* real-data benchmarks. Both
+are fixable, and the winning mechanisms are near-one-liners. These live in
+`validate/experiments/` and are exercised by `test_sybil_hardening.py` and
+`test_keystone_variants.py` — the core (`chord/`) is **not yet changed**; promoting them is
+the recommended next step.
+
+### Fix for F1 — out-diversity down-weighting neutralizes the ring
+`test_sybil_hardening.py` re-runs the exact RfA ring K-sweep under three candidate tweaks to
+`λ ← (1-δ)/n + δ·Tᵀλ`. Target percentile among real editors:
+
+| defense | K=5 | K=20 | K=50 | K=100 |
+|---|---|---|---|---|
+| baseline (shipped) | 75 | 98 | 99.9 | **100** |
+| **out-diversity** `Tᵀ(w·λ)`, `w`=norm. out-entropy | **0** | **0** | **0** | **0** |
+| seeded teleport (TrustRank-style) | 0 | 0 | 0 | 0 |
+| per-author clip `min(Tᵀλ, c)` alone | 75 | 98 | 99.9 | 99.9 |
+
+**Out-diversity** is the clear winner: weighting each rater's *transmitted* mass by the
+normalized entropy of its outgoing trust row sends a single-target rater (every ring puppet,
+out-degree 1) exactly **zero** mass, so the target harvests nothing — at *no* cost to honest
+ranking (**Spearman(baseline λ, out-div λ) = 1.000** on the clean graph, because real editors
+approve many authors and keep near-full weight). One line in `build_trust_matrix`/`eigentrust`.
+Seeded teleport (Kamvar 2003 pre-trusted peers; Gyöngyi 2004 TrustRank; the theoretically
+*necessary* asymmetry per Cheng–Friedman 2005/2006) also fully flattens it but needs a seed-
+selection step. Per-author clip alone is insufficient as tuned. *Caveat:* an attacker can
+raise a puppet's out-entropy by voting for several authors, but that splits its unit away from
+the target — the defense forces exactly that trade-off. Blend `w` with a small floor so a
+genuine one-vote newcomer isn't zeroed.
+
+### Fix for F2 — drop the σ/√n penalty; shrink instead; prefer Nash/EDE over hard min
+`test_keystone_variants.py` sweeps aggregator × penalty on both benchmarks.
+
+**Community Notes** (balanced-subsample AUC, bar to beat = `b_p` = 0.956; naive mean = 0.999):
+
+| variant | balanced AUC |
+|---|---|
+| `min` + σ/√n_count (≈ shipped B_LCB) | 0.870 |
+| `min`, no penalty | 0.888 |
+| `min` + James–Stein shrinkage | 0.998 |
+| **`mean`/`nash` + James–Stein** | **0.999** |
+
+**Polis** (Spearman with true min-across-*Polis-group* support — genuine bridging, distinct
+from the mean):
+
+| variant | mean Spearman |
+|---|---|
+| `min` + σ/√n_count (shipped) | 0.800 |
+| `min`, no penalty | 0.934 |
+| `min` + James–Stein | 0.964 |
+| **`nash` + James–Stein** | **0.973** |
+
+Two lessons: (1) **the σ/√n_count penalty was actively harmful** — removing it alone lifts
+Polis tracking 0.80→0.93 and CN 0.870→0.888, confirming the diagnosis that it subtracts
+*noise* (thin-cluster) not *risk*. (2) **Replace subtractive pessimism with empirical-Bayes
+shrinkage** (James–Stein / DerSimonian–Laird): shrink each cluster mean toward the note mean
+by how well-rated it is, so thin clusters regress to the mean and only *well-rated* dissent
+pulls the score down — exactly "subtract risk, not noise." This beats `b_p` on CN (0.998 vs
+0.956) and lifts Polis to 0.964. (3) On real multi-group structure (Polis) the **Nash /
+geometric-mean aggregator — which is literally Polis's own "group-informed consensus" — beats
+hard `min`** (0.973 vs 0.964); on CN it doesn't matter because CRH ≈ mean by construction.
+*Honest caveat:* beating `b_p` on CN is partly regression-to-the-mean (CN's label *is* an
+intercept threshold, so the mean is near-optimal there); the genuine bridging gain is the
+Polis result, where the target differs from the mean.
+
+**Recommended promotion into `chord/`:** (a) `rater/eigentrust.py`: out-diversity transmit-
+weight `w` (+ optional seeded teleport bound to the identity port); (b) `model/bridging.py`:
+replace `min_c[r̂ − β·σ/√(n+1)]` with `agg_ε(JamesStein-shrunk r̂_cp)`, default aggregator =
+Nash/EDE, and make `n_cp` a propensity-corrected *exposure* count (§6), not a rating count.
+
 ## Weaker signals worth watching
 
 - **Polis cluster reconstruction is inconsistent.** ARI between CHORD's clusters and

@@ -50,7 +50,8 @@ validate/
   metrics.py             # NDCG@k, AUC, Spearman, Adjusted Rand Index (no sklearn)
   synthetic.py           # impose a synthetic MNAR logging policy on a real matrix (C.3)
   datasets/              # one adapter per dataset → chord.types (Reaction/Post/Exposure)
-  test_*.py              # one claim-checking test file per dataset
+  experiments/           # prototype fixes for findings (Sybil-ring, keystone) — core untouched
+  test_*.py              # one claim-checking test file per dataset (+ *_hardening/_variants)
   data/                  # Git LFS: committed slices; raw/ subdirs are git-ignored
   FINDINGS.md            # the running list of claims that did NOT pan out
 ```
