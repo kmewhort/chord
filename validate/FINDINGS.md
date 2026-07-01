@@ -98,10 +98,17 @@ and the MovieLens row in the C.1 table should be qualified.
 
 After a literature survey (trust-metric + welfare/risk/robust-statistics math), the two
 headline findings (F1, F2) were prototyped against the *same* real-data benchmarks. Both
-are fixable, and the winning mechanisms are near-one-liners. These live in
-`validate/experiments/` and are exercised by `test_sybil_hardening.py` and
-`test_keystone_variants.py` — the core (`chord/`) is **not yet changed**; promoting them is
-the recommended next step.
+are fixable, and the winning mechanisms are near-one-liners. The prototypes live in
+`validate/experiments/` (exercised by `test_sybil_hardening.py` and
+`test_keystone_variants.py`); **both fixes are now promoted into the core** — the F1/F2
+finding-tests below (`test_signed_nets_eigentrust.py`, `test_community_notes_keystone.py`)
+were flipped from documented `xfail`s into passing regression guards against the shipped
+`chord/` code.
+
+> **Shipped:** out-diversity transmit weight in `chord/rater/eigentrust.py`
+> (`config.sybil_out_diversity`, default on); exposure-weighted shrinkage + `nash`
+> aggregator in `chord/model/bridging.py` (`config.bridging_aggregator="nash"`,
+> `bridging_shrinkage_n0`). Set the flags back to reproduce the original findings.
 
 ### Fix for F1 — out-diversity down-weighting neutralizes the ring
 `test_sybil_hardening.py` re-runs the exact RfA ring K-sweep under three candidate tweaks to

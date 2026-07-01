@@ -8,20 +8,29 @@ predicted reception
 
     r_hat_cp = mu + b_bar_c + b_a(p) + b_p + <x_bar_c, y_p>
 
-and define bridged support as a **tested-breadth lower confidence bound**:
+and define bridged support by **shrinking each cluster's reception toward the
+population mean by how much that cluster was exposed, then aggregating**:
 
-    B_LCB(p) = min_c [ r_hat_cp - beta * sigma / sqrt(n_cp + 1) ]
+    r_shrunk_cp = grand_p + [ n_cp / (n_cp + n0) ] * (r_hat_cp - grand_p)
+    B_LCB(p)    = aggregate_c  r_shrunk_cp          (min | nash | ede)
 
-where n_cp is the (propensity-corrected) number of cluster-c users actually
-*exposed* to p. If a cluster that would disagree has not yet been exposed
-(n_cp ~ 0), its penalty term is large and B_LCB stays low: **a post is not
-credited as bridging until it has survived contact with the people who would
-dislike it.** The min-over-clusters form is Ethelo's Rawlsian strength and
-Polis's group-aware consensus.
+where grand_p is the mean reception across clusters and n_cp is the (propensity-
+corrected) number of cluster-c users actually *exposed* to p (§6). A cluster that
+has barely been exposed (n_cp ~ 0) regresses to the mean — its apparent dissent is
+sampling noise, not a tested divide — so a post sits near the population mean until
+exposed, and only a *well-exposed* disagreeing cluster keeps its low reception and
+pulls the score down: **a post is not credited as bridging above the mean until it
+has survived contact with the people who would dislike it.** The default ``min``
+aggregator is Ethelo's Rawlsian strength; ``nash`` (geometric mean of agree-
+probabilities) is Polis's group-informed consensus.
 
-Note the deliberate asymmetry (§4.2): the exploration pool samples *high*
-uncertainty optimistically (what to audition); B_LCB uses uncertainty
-*pessimistically* (what to crown). Optimism explores; pessimism rewards.
+This empirical-Bayes shrinkage (James-Stein / DerSimonian-Laird) replaces an
+earlier subtractive penalty ``min_c[r_hat - beta*sigma/sqrt(n+1)]`` that demoted
+under-*sampled* clusters and, on real data (Community Notes / Polis), was beaten by
+both the scalar b_p and a naive rating mean — it subtracted noise, not risk
+(Appendix C.5). Note the deliberate asymmetry (§4.2): the exploration pool samples
+*high* uncertainty optimistically (what to audition); B_LCB shrinks *low*-exposure
+clusters to the mean and rewards only tested breadth (what to crown).
 """
 from __future__ import annotations
 
@@ -101,36 +110,68 @@ class BridgingScorer:
         clusters: ClusterModel,
         exposure_counts: Optional[Mapping[int, float]] = None,
     ) -> float:
-        """B_LCB for a single post.
+        """B_LCB for a single post (§4.2, shrinkage form — Appendix C.5).
 
-        ``exposure_counts`` maps cluster index -> propensity-corrected n_cp. A
-        cluster missing from the mapping is treated as n_cp = 0 (never exposed),
-        which maximizes its pessimism penalty.
+        ``exposure_counts`` maps cluster index -> propensity-corrected *exposure*
+        ``n_cp`` (§6). Each cluster's reconstructed reception is shrunk toward the
+        population mean with weight ``n_cp/(n_cp+n0)``, then aggregated
+        (``config.bridging_aggregator``). A thinly-exposed cluster regresses to the
+        mean — its apparent dissent is treated as sampling noise, not tested
+        divisiveness — while a *well-exposed* disagreeing cluster keeps its low
+        reception and pulls the score down. So a post is credited near the
+        population mean until exposed, and only *observed* cross-cluster dissent
+        (not a small rating count) lowers it: this replaces the old subtractive
+        ``β·σ/√(n+1)`` penalty, which demoted under-sampled clusters and was beaten
+        on real data (Community Notes / Polis) by both ``b_p`` and a naive mean.
         """
         y = result.y_post.get(post_id)
         if y is None:
-            # Unseen post: no tested support yet.
+            # Unseen post: no reception estimate at all.
             return float("-inf")
         b_p = result.b_post.get(post_id, 0.0)
         b_a = result.b_author.get(author_id, 0.0)
         mu = result.mu
         cfg = self.config
+        K = clusters.n_clusters
 
-        best = np.inf
-        for c in range(clusters.n_clusters):
-            r_hat = (
-                mu
-                + clusters.mean_bias[c]
-                + b_a
-                + b_p
-                + float(np.dot(clusters.centroids[c], y))
-            )
-            n_cp = 0.0 if exposure_counts is None else float(exposure_counts.get(c, 0.0))
-            penalty = cfg.lcb_beta * cfg.lcb_sigma / np.sqrt(n_cp + 1.0)
-            lcb_c = r_hat - penalty
-            if lcb_c < best:
-                best = lcb_c
-        return float(best)
+        r_hat = np.array([
+            mu + clusters.mean_bias[c] + b_a + b_p
+            + float(np.dot(clusters.centroids[c], y))
+            for c in range(K)
+        ])
+        grand = float(np.mean(r_hat))          # population (cluster-agnostic) reception
+        n_cp = np.array([
+            0.0 if exposure_counts is None else float(exposure_counts.get(c, 0.0))
+            for c in range(K)
+        ])
+        w = n_cp / (n_cp + cfg.bridging_shrinkage_n0)   # empirical-Bayes trust in each cluster
+        r_shrunk = grand + w * (r_hat - grand)
+        return float(self._aggregate(r_shrunk))
+
+    def _aggregate(self, r: np.ndarray) -> float:
+        """Aggregate per-cluster (shrunk) receptions into one bridged score (§4.2).
+
+        ``min`` is the Rawlsian worst-cluster default; ``nash`` is the geometric
+        mean of per-cluster agree-probabilities (Polis's group-informed consensus);
+        ``ede`` is the Atkinson equally-distributed-equivalent with inequality
+        aversion ``bridging_ede_eps`` (→ ``min`` as eps→∞). Nash/EDE tracked genuine
+        cross-group support better than hard ``min`` on Polis (Appendix C.5).
+        """
+        mode = self.config.bridging_aggregator
+        if mode == "min":
+            return float(np.min(r))
+        p = np.clip((r + 1.0) / 2.0, 1e-6, 1.0)     # signed reception → agree-prob
+        if mode == "nash":
+            agg01 = float(np.exp(np.mean(np.log(p))))
+        elif mode == "ede":
+            eps = self.config.bridging_ede_eps
+            if abs(eps - 1.0) < 1e-9:
+                agg01 = float(np.exp(np.mean(np.log(p))))
+            else:
+                agg01 = float(np.mean(p ** (1.0 - eps)) ** (1.0 / (1.0 - eps)))
+        else:
+            raise ValueError(f"unknown bridging_aggregator {mode!r}")
+        return agg01 * 2.0 - 1.0
 
     def score(
         self,

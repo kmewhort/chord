@@ -22,8 +22,12 @@ datasets. Everything runs on modest hardware, by design (the fediverse target).
 
 ```bash
 pip install -e '.[test]'      # numpy, scipy, pytest
-pytest -q                     # full suite (~110+ tests, ~8s)
+pytest -q                     # core suite (~110+ tests, ~8s) — testpaths=["tests"], offline
 python -m examples.demo       # runnable demo of the three headline claims
+
+pip install -e '.[validate]'  # + pandas, pyarrow, requests
+python -m validate.fetch all  # download real datasets into validate/data (Git LFS)
+pytest validate/ -rxX         # opt-in real-data validation (Appendix C); needs git-lfs
 ```
 
 - Python ≥ 3.9. `pyproject.toml` sets `filterwarnings = ["error::RuntimeWarning"]`
@@ -69,10 +73,15 @@ and `UserKnobs` (the free consumption knobs M/ρ/θ/ε — see the §12 wall bel
 These are the subtle spots (several were bugs during the first build; all now have
 tests and are documented in the whitepaper's own prose):
 
-1. **EigenTrust `T` is row-stochastic** (`rater/eigentrust.py`): each *rater's
-   outgoing* trust sums to 1. Column-normalizing (author-incoming) lets a Sybil
-   with one dedicated booster inherit that booster's full weight → defeats Sybil
-   starvation. Test: `test_adversarial.py::test_fresh_sybil_gets_minimal_trust`.
+1. **EigenTrust `T` is row-stochastic + out-diversity transmit weight**
+   (`rater/eigentrust.py`): each *rater's outgoing* trust sums to 1. Column-
+   normalizing lets a one-puppet Sybil inherit its booster's full weight. Row
+   normalization alone still lost to a *ring* (many one-vote puppets pooling their
+   teleport-floor mass onto one target), so the iteration weights each rater's
+   *transmitted* trust by the entropy of its row (`outgoing_diversity_weights`,
+   `config.sybil_out_diversity`): a single-target rater forwards ≈0. Tests:
+   `test_adversarial.py::{test_fresh_sybil_gets_minimal_trust,test_sybil_ring_cannot_harvest_influence}`,
+   `validate/test_signed_nets_eigentrust.py`. Validated on RfA (Appendix C.5).
 2. **IPW weights are rescaled to mean 1** (`propensity/ipw.py`, `normalize=True`).
    λ is a normalized distribution, so raw weights are O(1/|E|); the MF's fixed
    embedding regularization would then swamp the data and collapse embeddings to
@@ -90,6 +99,15 @@ tests and are documented in the whitepaper's own prose):
 6. **Consumption vs. authority wall (§12)**: `UserKnobs` exposes only M/ρ/θ/ε.
    Earned quantities (λ, `q_scout`, `B(a)`) are **never** user-settable — keep it
    that way. The author budget binds to the *identity* port, not the raw account.
+7. **`B_LCB` is exposure-weighted shrinkage, not a subtractive penalty**
+   (`model/bridging.py`): each cluster's reconstructed reception is shrunk toward
+   the population mean by `n_cp/(n_cp+n0)` (empirical Bayes), then aggregated
+   (`config.bridging_aggregator`, default `"nash"` = Polis product; `"min"`/`"ede"`
+   available). The old `min_c[r̂ − βσ/√(n+1)]` penalized *under-sampled* clusters
+   (noise) and lost to `b_p`/naive-mean on real data; the shrinkage regresses thin
+   clusters to the mean so only *well-exposed* dissent lowers the score. `n_cp` must
+   be a real (propensity-corrected) **exposure** count, not a rating count.
+   Validated on Community Notes / Polis (Appendix C.5). Test: `test_bridging.py`.
 
 ## Conventions
 
@@ -120,9 +138,13 @@ tests and are documented in the whitepaper's own prose):
 
 ## What's deliberately not here
 
-- No dataset loaders. Appendix C lists real datasets (Community Notes, Polis,
-  Yahoo!R3/Coat/KuaiRand, Reddit, etc.); the `eval/` harness is semi-synthetic
-  only. Real-data validation is future work.
+- No dataset loaders *in the core* (`chord/`). Real-data validation lives in the
+  separate opt-in `validate/` suite (Appendix C): adapters for Coat, Polis,
+  MovieLens, Wikipedia-RfA, and a Community Notes slice, mapping each to
+  `chord.types`, with datasets committed under `validate/data` via Git LFS. It
+  found (and then fixed, see §5/§4.2 + Appendix C.5) two real weaknesses — the
+  Sybil-ring harvest and the old subtractive `B_LCB`. `chord/eval/` remains the
+  semi-synthetic MNAR harness only.
 - No serving/HTTP layer, no Mastodon/ATProto integration — CHORD is the
   valuation-and-allocation core; retrieval and presentation stay upstream/downstream.
 - Rich port adapters (see Conventions).

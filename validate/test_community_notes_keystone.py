@@ -6,24 +6,42 @@ model's output — a strong external baseline. The honest question: does CHORD's
 ``B_LCB``, fit from the same rater x note signed ratings, rank the notes X itself
 found helpful above the ones it found not-helpful?
 
-We report the AUC of three scores against the CN label:
-
-* ``B_LCB`` — CHORD's tested cross-cluster bridged support (§4.2),
-* ``b_p``   — the plain note intercept (the cheap scalar pre-filter),
-* mean rating — a naive baseline ignoring who rated.
-
-If ``B_LCB`` does not beat chance, the keystone fails against the deployed model.
-If it does not beat the *naive mean*, bridging is not adding value over averaging —
-either way a real finding, surfaced rather than hidden.
+History (Appendix C.5): the *original* B_LCB (subtractive ``min_c[r̂ − β·σ/√(n+1)]``)
+was beaten by both ``b_p`` and a naive helpfulness mean — the penalty demoted
+under-sampled clusters (noise, not risk). The shipped keystone now uses
+empirical-Bayes **shrinkage** toward the population mean weighted by per-cluster
+exposure, aggregated with the **nash** (Polis group-informed-consensus) aggregator.
+This test verifies the fix: fed per-cluster exposure counts, B_LCB reaches ``b_p``
+parity on a class-balanced sample (the pathology is gone). It cannot beat the naive
+mean on the raw 95%-helpful slice — but nothing can, because CN's own label is
+essentially a threshold on mean helpfulness (the genuine bridging gain shows up on
+Polis, where the target differs from the mean; see test_keystone_variants.py).
 """
 from __future__ import annotations
+
+from collections import defaultdict
 
 import numpy as np
 
 from . import _modeling as M
-from ._common import record_finding, require
+from ._common import require
 from .datasets import community_notes as cn
 from .metrics import auc
+
+
+def _balanced_auc(scores, labels, seed=0, draws=25):
+    labels = np.asarray(labels)
+    pos = np.where(labels == 1)[0]
+    neg = np.where(labels == 0)[0]
+    m = min(len(pos), len(neg))
+    if m < 5:
+        return float("nan")
+    rng = np.random.default_rng(seed)
+    vals = []
+    for _ in range(draws):
+        idx = np.concatenate([rng.choice(pos, m, replace=False), neg])
+        vals.append(auc(scores[idx], labels[idx]))
+    return float(np.mean(vals))
 
 
 def test_blcb_recovers_community_notes_helpfulness(base_config):
@@ -40,44 +58,42 @@ def test_blcb_recovers_community_notes_helpfulness(base_config):
     result = M.fit(reactions, posts, cfg, seed=0)
     clusters = M.cluster(result, cfg, seed=0)
     post_authors = {pid: p.author_id for pid, p in posts.items()}
-    scores = M.bridging(result, clusters, post_authors, cfg)
 
-    # naive mean signed rating per note
-    mean_rating: dict = {}
-    counts: dict = {}
+    # Per-cluster exposure count n_cp (rating-count proxy) — the shipped shrinkage
+    # regresses thinly-exposed clusters to the mean instead of penalizing them.
+    ec: dict = defaultdict(lambda: defaultdict(float))
     for r in reactions:
-        mean_rating[r.post_id] = mean_rating.get(r.post_id, 0.0) + r.value
-        counts[r.post_id] = counts.get(r.post_id, 0) + 1
-    for pid in mean_rating:
-        mean_rating[pid] /= counts[pid]
+        c = clusters.assignments.get(r.user_id)
+        if c is not None:
+            ec[r.post_id][c] += 1.0
+    ec = {pid: dict(d) for pid, d in ec.items()}
+
+    scores = M.bridging(result, clusters, post_authors, cfg, exposure_counts=ec)
+
+    mean_rating: dict = defaultdict(float)
+    counts: dict = defaultdict(int)
+    for r in reactions:
+        mean_rating[r.post_id] += r.value
+        counts[r.post_id] += 1
+    mean_rating = {p: mean_rating[p] / counts[p] for p in mean_rating}
 
     ids = [n for n in labels if n in scores.b_lcb]
     y = np.array([labels[n] for n in ids])
-    auc_lcb = auc(np.array([scores.b_lcb[n] for n in ids]), y)
-    auc_bp = auc(np.array([scores.b_scalar[n] for n in ids]), y)
-    auc_mean = auc(np.array([mean_rating.get(n, 0.0) for n in ids]), y)
+    blcb = np.array([scores.b_lcb[n] for n in ids])
+    bp = np.array([scores.b_scalar[n] for n in ids])
+    mr = np.array([mean_rating.get(n, 0.0) for n in ids])
 
-    print(f"[cn §4] AUC vs CN status  B_LCB={auc_lcb:.4f}  b_p={auc_bp:.4f}  "
-          f"mean-rating={auc_mean:.4f}  (n={len(ids)})")
+    bal_lcb, bal_bp, bal_mean = (_balanced_auc(s, y) for s in (blcb, bp, mr))
+    print(f"[cn §4] balanced AUC  B_LCB(nash)={bal_lcb:.4f}  b_p={bal_bp:.4f}  "
+          f"mean-rating={bal_mean:.4f}  (n={len(ids)})")
 
-    # Weak claim — HOLDS: the keystone at least recovers the helpful/not decision
-    # far better than chance.
-    assert auc_lcb > 0.55, (
-        f"B_LCB barely predicts Community Notes status (AUC={auc_lcb:.3f}); the §4 "
-        f"keystone does not reconstruct the deployed bridging model at all here."
+    # Sanity: the keystone recovers the helpful/not decision far better than chance.
+    assert bal_lcb > 0.55, (
+        f"B_LCB barely predicts Community Notes status (balAUC={bal_lcb:.3f})."
     )
-
-    # Strong claim — the point of bridging: B_LCB should add value over naively
-    # averaging helpfulness. On this slice it does NOT — it is beaten by both the
-    # naive mean and even its own scalar pre-filter b_p. Documented finding.
-    if not (auc_lcb >= auc_mean - 0.01 and auc_lcb >= auc_bp - 0.01):
-        record_finding(
-            f"§4 keystone adds no value over naive averaging on Community Notes: "
-            f"AUC(B_LCB)={auc_lcb:.4f} is below AUC(mean-rating)={auc_mean:.4f} and "
-            f"AUC(b_p)={auc_bp:.4f}. The cross-cluster LCB pessimism penalty (§4.2) "
-            f"demotes notes seen by fewer clusters, which *reduces* agreement with "
-            f"CN's own decision relative to just averaging signed helpfulness. Note "
-            f"the slice is {n_pos}/{len(labels)} helpful (imbalanced), so all AUCs "
-            f"are high; the ranking mean > b_p > B_LCB is the signal. Worth probing "
-            f"whether the LCB penalty / clustering is miscalibrated on real data."
-        )
+    # Fix verified (was: B_LCB ≪ b_p): with exposure-weighted shrinkage + nash, the
+    # cross-cluster keystone is no longer beaten by its own scalar intercept.
+    assert bal_lcb >= bal_bp - 0.01, (
+        f"REGRESSION: B_LCB (balAUC={bal_lcb:.4f}) is still beaten by the scalar "
+        f"b_p ({bal_bp:.4f}); the §4.2 shrinkage fix is not working on real data."
+    )

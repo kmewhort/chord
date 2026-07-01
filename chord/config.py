@@ -73,10 +73,27 @@ class ChordConfig:
     reg_bias_author: float = 0.05  # tau_a^-2 partial pooling on b_a
     mf_tol: float = 1e-5  # early-stop tolerance on weighted RMSE
 
-    # --- Bridging / LCB (§4.2) ---
-    lcb_beta: float = 1.0  # pessimism multiplier on the confidence penalty
-    lcb_sigma: float = 1.0  # residual noise scale sigma
+    # --- Bridging / B_LCB (§4.2) ---
+    # The cross-cluster reception is aggregated after an empirical-Bayes shrinkage
+    # of each cluster's reconstructed reception toward the population mean, weighted
+    # by that cluster's (propensity-corrected) *exposure* n_cp. Thinly-exposed
+    # clusters regress to the mean (their apparent dissent is sampling noise), and
+    # only well-exposed dissent pulls the score down. Validated on Community Notes /
+    # Polis to beat the old subtractive penalty and the scalar b_p (§4.2, App C.5).
+    bridging_shrinkage_n0: float = 8.0  # exposure pseudo-count; n_cp/(n_cp+n0) trust
+    # Cross-cluster aggregator: "nash" (geometric mean of agree-probabilities =
+    # Polis's group-informed consensus — the default; a single opposed group still
+    # blocks high consensus, without hard-min brittleness), "min" (Ethelo's Rawlsian
+    # worst-cluster), or "ede" (Atkinson equally-distributed-equivalent, inequality
+    # aversion bridging_ede_eps). Nash tracked genuine cross-group support best on
+    # Polis and reached b_p parity on Community Notes (Appendix C.5).
+    bridging_aggregator: str = "nash"
+    bridging_ede_eps: float = 4.0      # Atkinson inequality aversion (eps→∞ ≈ min)
     n_clusters: int = 2  # default Partition adapter cluster count
+    # Retained for the legacy subtractive-LCB path and external references; the
+    # default shrinkage bound (above) does not use them.
+    lcb_beta: float = 1.0
+    lcb_sigma: float = 1.0
 
     # --- Divisiveness A (§4.1) ---
     # Weight of the affective-polarization-correlated axes when building A. With
@@ -88,6 +105,13 @@ class ChordConfig:
     eigentrust_iters: int = 50
     eigentrust_tol: float = 1e-8
     quality_track_mix: float = 0.5  # blend eigentrust with quality-agreement weight
+    # Ring defense (§5, App C.5): weight each rater's *transmitted* trust by the
+    # normalized entropy of its outgoing row, so a single-target rater (every
+    # collusion-ring puppet, out-degree 1) forwards ≈0 of its teleport-floor mass.
+    # Validated on Wikipedia RfA to flatten the ring-size→influence curve at no cost
+    # to honest ranking.
+    sybil_out_diversity: bool = True
+    out_diversity_floor: float = 0.0   # floor on the transmit weight (0 = full defense)
 
     # --- Scout precision (§5) ---
     scout_alpha: float = 0.5  # rank-decay in q_scout

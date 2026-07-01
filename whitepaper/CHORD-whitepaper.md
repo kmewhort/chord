@@ -157,40 +157,50 @@ $$
 \hat r_{cp} \;=\; \mu + \bar b_c + b_{a(p)} + b_p + \langle \bar x_c,\, y_p\rangle
 $$
 
-and define bridged support as a **tested-breadth lower confidence bound**:
+and define bridged support by **shrinking each cluster's reception toward the population mean
+by how much that cluster was actually exposed, then aggregating across clusters**:
 
 $$
-\boxed{\;B_{\mathrm{LCB}}(p) \;=\; \min_{c}\Big[\, \hat r_{cp} \;-\; \beta\,\frac{\sigma}{\sqrt{n_{cp}+1}} \,\Big]\;}
+\boxed{\;B_{\mathrm{LCB}}(p) \;=\; \operatorname*{agg}_{c}\; \tilde r_{cp},
+\qquad
+\tilde r_{cp} \;=\; \bar r_p \;+\; \frac{n_{cp}}{n_{cp}+n_0}\,\big(\hat r_{cp}-\bar r_p\big)\;}
 $$
 
-where $n_{cp}$ is the (propensity-corrected) number of cluster-$c$ users who were actually
-exposed to $p$. This resolves the central failure mode in one stroke: if a cluster that
-would disagree has not yet been exposed ($n_{cp}\approx 0$), its penalty term is large and
-$B_{\mathrm{LCB}}$ stays low — **a post is not credited as bridging until it has survived
-contact with the people who would dislike it.** The $\min_c$ form is Ethelo's Rawlsian
-strength and Polis's group-aware consensus. Keep the scalar $b_p$ as a cheap pre-filter;
-rank on $B_{\mathrm{LCB}}$.
+where $\bar r_p=\tfrac1{|C|}\sum_c \hat r_{cp}$ is the population (cluster-agnostic) reception
+and $n_{cp}$ is the (propensity-corrected, §6) number of cluster-$c$ users actually *exposed*
+to $p$. This is an empirical-Bayes (James–Stein / DerSimonian–Laird) shrinkage: a cluster that
+has barely been exposed ($n_{cp}\to0$) regresses to the mean — its apparent dissent is sampling
+noise, not a tested divide — while a **well-exposed** disagreeing cluster keeps its low
+reception and pulls the score down. **A post is not credited as bridging above the mean until
+it has survived contact with the people who would dislike it.** The aggregator is a knob: the
+default $\operatorname{agg}=\text{nash}$ (geometric mean of per-cluster agree-probabilities) is
+Polis's group-informed consensus — one opposed group blocks high consensus, without the
+brittleness of a hard $\min$; $\operatorname{agg}=\min$ recovers Ethelo's Rawlsian
+worst-cluster, and an Atkinson equally-distributed-equivalent interpolates between them. Keep
+the scalar $b_p$ as a cheap pre-filter; rank on $B_{\mathrm{LCB}}$.
 
 Note the deliberate asymmetry in how uncertainty is used: the exploration pool (§8) samples
 *high*-uncertainty posts optimistically to decide what to **audition**; $B_{\mathrm{LCB}}$
-uses uncertainty pessimistically to decide what to **crown**. Optimism explores; pessimism
-rewards. This is what prevents imperfect estimates from manufacturing false bridging.
+shrinks *low*-exposure clusters to the mean and credits only tested breadth to decide what to
+**crown**. Optimism explores; conservatism rewards. This is what prevents imperfect estimates
+from manufacturing false bridging.
 
-**A validation caveat, learned the hard way (Appendix C.5).** Benchmarked against X's
-Community Notes — the one deployed bridging system whose helpful/not decisions we can treat
-as ground truth — the *reconstructed* $B_{\mathrm{LCB}}$ did **not** beat the alternatives it
-is supposed to improve on: it trailed both the scalar $b_p$ and even a naive mean of signed
-helpfulness at recovering CN's `CURRENTLY_RATED_HELPFUL` status (AUC $0.93$ vs. $0.95$ vs.
-$0.9994$). The likely culprit is the pessimism term itself. With no per-cluster exposure
-counts to hand ($n_{cp}$ set uniformly), the $\min_c$-minus-penalty structure systematically
-demotes notes that happen to have been read by fewer clusters — a property only loosely
-correlated with genuine divisiveness — so the confidence bound subtracts noise rather than
-risk. The lesson is not that per-cluster reconstruction is wrong but that $B_{\mathrm{LCB}}$
-is only as good as the exposure model feeding $n_{cp}$: the penalty must be driven by
-*propensity-corrected* per-cluster exposure (§6), not by raw rating counts, and $\beta$ needs
-calibrating against a held-out helpfulness signal rather than assumed. Absent a reliable
-$n_{cp}$, the scalar $b_p$ pre-filter is the safer ranker — the inversion of the advice above,
-and a standing open problem (§13).
+**This form was arrived at empirically, against a deployed baseline (Appendix C.5).** An
+earlier version used a subtractive penalty $B_{\mathrm{LCB}}=\min_c[\hat r_{cp}-\beta\sigma/
+\sqrt{n_{cp}+1}]$. Benchmarked against X's Community Notes — the one deployed bridging system
+whose helpful/not decisions we can treat as ground truth — that version was *beaten by both*
+the scalar $b_p$ and a naive mean of signed helpfulness at recovering CN's
+`CURRENTLY_RATED_HELPFUL` status, because with a rating-count $n_{cp}$ the $\min$-minus-penalty
+demotes notes *sampled* by fewer clusters (noise) rather than notes *divisive* across clusters
+(risk) — it subtracted noise, not risk. Two changes fixed it and are now the shipped default:
+replace the subtractive penalty with the exposure-weighted shrinkage above, and aggregate with
+the nash product rather than a hard $\min$. On a class-balanced Community Notes sample the
+repaired $B_{\mathrm{LCB}}$ reaches $b_p$ parity — it can no longer be beaten by its own
+intercept — and on Polis, where genuine multi-group structure makes bridging differ from the
+mean, it tracks true cross-group support far better (Spearman $0.80\to0.97$). The one standing
+requirement is that $n_{cp}$ be a real propensity-corrected *exposure* count (§6), not a raw
+rating count; against CN's own intercept-thresholded label the naive mean remains unbeatable by
+construction, so the decisive evidence for the aggregator is Polis, not CN.
 
 ## 5. Rater weighting: quality-tracking, not variance
 
@@ -211,11 +221,17 @@ trusted by credible people who disagree with you"), computable via a damped, tel
 eigentrust iteration on the learned geometry:
 
 $$
-\lambda \;\leftarrow\; \tfrac{1-\delta}{n}\mathbf 1 \;+\; \delta\, T^\top \lambda,
+\lambda \;\leftarrow\; \tfrac{1-\delta}{n}\mathbf 1 \;+\; \delta\, T^\top (w \odot \lambda),
+\qquad
+w_v \;=\; \frac{H(T_{v\cdot})}{\log \deg^{+}(v)},
 \qquad
 T_{vu} \;=\; \frac{\sum_{p:\,a(p)=u}\, [r_{vp}]_+\,\cdot\,\mathrm{dist}(x_v, x_u)}
                   {\sum_{u'}\sum_{p:\,a(p)=u'}\, [r_{vp}]_+\,\cdot\,\mathrm{dist}(x_v, x_{u'})}
 $$
+
+where $w_v\in[0,1]$ is the **outgoing-diversity** weight — the normalized Shannon entropy of
+rater $v$'s trust row — introduced below to defeat collusion rings; $w_v=1$ recovers plain
+eigentrust.
 
 $T$ must be **row-stochastic** — normalized over each *rater's outgoing* trust
 ($\sum_u T_{vu}=1$), not over each author's incoming — so a rater distributes one fixed unit
@@ -224,29 +240,38 @@ Sybil starvation: under *column* normalization a Sybil author boosted by a singl
 puppet would inherit that puppet's entire weight (its lone incoming edge normalizes to $1$),
 whereas under row normalization an honestly-approved author accrues from *many* independent
 cross-divide raters while a one-puppet Sybil receives only that puppet's fraction. The teleport
-floor ($\delta<1$) makes this a contraction with a unique fixed point, floors
-every rater's weight (no one is zeroed), and starves Sybils (fresh accounts have no
-incoming cross-divide trust). **Whichever estimator is used, weight by agreement with the
-bridged-quality signal after ideology is projected out — never by residual variance.**
+floor ($\delta<1$) makes this a contraction with a unique fixed point and floors
+every rater's own weight (no one is zeroed). But the floor is also an attack surface:
 
-**Sybil starvation is weaker than it looks: a *ring* beats it (Appendix C.5).** Row
-normalization defeats the *one*-puppet attack, but it does not defeat a coordinated ring, and
-validation on real signed votes (Wikipedia RfA) makes this concrete. The teleport floor gives
-*every* account — puppets included — a baseline weight of $(1-\delta)/n$. A ring of $K$ fresh
-accounts that each cast exactly one approval, all of it aimed at one target author, hands that
-target $\delta\!\sum_i\lambda_{\text{puppet}_i}\approx \delta K(1-\delta)/n$ of transported
-mass: each puppet is row-stochastic so it forwards its *entire* unit to the target, while
-honest boosters split their unit across the many authors they genuinely approve. The puppets
-themselves stay starved (each keeps only floor mass — the property our unit tests check), but
-the *target* they point at is not. Empirically the target climbs from the $75$th percentile of
-real-editor influence at $K=5$ to the $100$th at $K=100$; influence grows without bound in ring
-size. In other words, teleport-floor eigentrust starves the sybils but lets their beneficiary
-*harvest their redirected baseline mass*. The remaining defense is entirely outside this
-iteration — the identity port's forge-cost (§11), which makes minting $K$ admissible identities
-expensive — so §5 should be read as Sybil-*resistant only in combination with* a costly-identity
-assumption, not self-sufficiently. Concrete hardenings (degree-aware down-weighting of
-single-target raters, a pre-trusted seed set à la TrustRank, capping any one author's incoming
-trust from low-$\lambda$ raters) are open work (§13).
+**Row-stochasticity alone is not enough — a *ring* beats it, so we add outgoing-diversity
+weighting (Appendix C.5).** Row normalization defeats the *one*-puppet attack but not a
+coordinated ring, as validation on real signed votes (Wikipedia RfA) made concrete. The
+teleport floor gives *every* account — puppets included — a baseline weight of $(1-\delta)/n$.
+A ring of $K$ fresh accounts that each cast exactly one approval, all of it aimed at one target
+author, would hand that target $\delta\!\sum_i\lambda_{\text{puppet}_i}\approx \delta
+K(1-\delta)/n$ of transported mass: each puppet, being row-stochastic, forwards its *entire*
+unit to the target, while honest boosters split their unit across the many authors they
+genuinely approve. The puppets themselves stay starved, but the *target* harvests their pooled
+baseline mass — the original ranker let the target climb from the $75$th percentile of
+real-editor influence at $K=5$ to the $100$th at $K=100$. This is not a CHORD-specific bug: no
+symmetric reputation function is Sybil-proof (Cheng & Friedman 2005), and the uniform teleport
+$\tfrac{1-\delta}{n}\mathbf 1$ is exactly that symmetric part.
+
+The fix, now the shipped default, is the transmit weight $w_v$ above: weight each rater's
+*outgoing* trust by the normalized entropy of its trust row, so a **single-target rater —
+every ring puppet, out-degree $1$ — transmits $w_v=0$**, forwarding none of its floor mass,
+while an honest rater who spreads approval across many authors keeps $w_v\approx1$. On RfA this
+collapses the ring target from the $100$th percentile back to the $0$th at every $K$, at *no*
+cost to honest ranking (the influence order of real editors is unchanged, Spearman $1.0$),
+because the attack's signature — concentrating one's entire outgoing unit on a single
+beneficiary — is precisely what the entropy weight penalizes; an attacker who dilutes a puppet
+across several authors to raise its entropy thereby splits its mass *away* from the target. A
+small floor on $w_v$ keeps a genuine low-activity newcomer from being muted. This is a first
+line, not a completeness proof: the theoretically complete defense is an *asymmetric* teleport
+(a pre-trusted seed set à la TrustRank / EigenTrust's pre-trusted peers), which CHORD supports
+as an optional seeded restart bound to the identity port (§11); combined with the identity
+forge-cost it closes the residual. **Whichever estimator is used, weight by agreement with the
+bridged-quality signal after ideology is projected out — never by residual variance.**
 
 Two earned quantities feed off the same geometry:
 
@@ -489,12 +514,13 @@ subsystem.
 ## 10. Adversarial robustness
 
 - **Sybil / sockpuppets** — the visibility budget binds to identity, not accounts, and trust
-  propagation gives fresh accounts ≈ zero weight *as raters*. But this is not self-sufficient:
-  a ring of fresh accounts all approving one target lets that *target* harvest the puppets'
-  teleport-floor mass and reach top-percentile influence (§5, Appendix C.5). Sharding across
-  accounts gains nothing for the puppets but does gain influence for their beneficiary, so the
-  budget-binds-to-identity guarantee rests on the identity port's forge-cost (§11) — real
-  Sybil resistance requires costly identities, not the trust iteration alone.
+  propagation gives fresh accounts ≈ zero weight *as raters*. A naive teleport-floor eigentrust
+  had a residual hole — a ring of fresh accounts all approving one target let that *target*
+  harvest the puppets' floor mass — which the **outgoing-diversity transmit weight** now closes:
+  a single-target puppet forwards zero trust, so the ring collapses to the floor at any size
+  (§5, Appendix C.5, validated on RfA). Sharding across accounts therefore gains nothing, for
+  puppets *or* their beneficiary; the optional seeded-teleport asymmetry plus the identity
+  port's forge-cost (§11) close the theoretical remainder.
 - **Brigading** — two independent defenses: a brigade of fresh accounts has no cross-divide
   trust path, and a brigade *creates* a split distribution that the divisiveness term and
   the $B_{\mathrm{LCB}}$ min-over-clusters penalize. Gaming lowers the score.
@@ -565,21 +591,25 @@ Honest residuals, several of which no fix fully removes:
    model-estimated satisfaction but not eliminated.
 7. **Distinguishing harmful from benign divides** ($A$'s weighting) is a normative,
    instance-level choice with no purely technical answer.
-8. **Sybil starvation does not survive a ring** (§5, validated in C.5). Row-stochastic
-   teleport-floor eigentrust starves individual puppets but lets the *target* of a coordinated
-   ring harvest their pooled baseline mass, reaching top-percentile influence as the ring grows.
-   The iteration is Sybil-resistant only *given* costly identities (the forge-cost port); making
-   the trust propagation itself ring-resistant — degree-aware down-weighting of single-target
-   raters, a pre-trusted seed set (TrustRank), per-author caps on incoming trust from low-$\lambda$
-   raters, or bounding each rater's marginal contribution — is open and, unlike the clique
-   problem, looks tractable.
-9. **The reconstructed $B_{\mathrm{LCB}}$ has not yet earned its complexity** (§4.2, validated
-   in C.5). On the one deployed bridging benchmark (Community Notes) it is beaten by both the
-   scalar $b_p$ and a naive helpfulness mean, because the $\min_c$ pessimism penalty is driven by
-   raw per-cluster rating counts rather than propensity-corrected exposure $n_{cp}$. Until
-   $n_{cp}$ comes from a real exposure model (§6) and $\beta$ is calibrated against a held-out
-   signal, the cheap scalar is the safer ranker — an inversion of §4.2's advice that the design
-   owes an answer to.
+8. **Sybil rings — mostly closed, with a residual** (§5, validated in C.5). A naive
+   teleport-floor eigentrust let a single-target ring's *beneficiary* harvest the puppets'
+   pooled floor mass (top-percentile influence as the ring grows). The shipped outgoing-diversity
+   transmit weight closes this — a single-target puppet forwards nothing, and on RfA the ring
+   collapses to the floor at every size with honest ranking preserved. The residual is
+   theoretical: Cheng & Friedman prove no *symmetric* reputation function is Sybil-proof, so full
+   resistance needs the *asymmetric* seeded teleport (supported, bound to the identity port) plus
+   the forge-cost — and a sufficiently patient attacker who diversifies each puppet across many
+   authors trades ring stealth for diluted impact. Hardened, not proven impossible.
+9. **$B_{\mathrm{LCB}}$ now earns its complexity — where the data has group structure** (§4.2,
+   validated in C.5). The earlier subtractive $\min_c$ penalty, fed raw rating counts, was beaten
+   on Community Notes by both the scalar $b_p$ and a naive mean (it subtracted noise, not risk).
+   Replacing it with exposure-weighted empirical-Bayes shrinkage and the nash aggregator reaches
+   $b_p$ parity on CN and *beats* it on Polis's genuine multi-group divides (Spearman
+   $0.80\to0.97$). Two residuals remain: against a label that is itself an intercept threshold
+   (CN's CRH) a naive mean is unbeatable by construction, so CN is the wrong court of appeal for
+   an aggregator; and the shrinkage is only as good as the exposure count $n_{cp}$ feeding it —
+   a rating-count proxy works, but a real propensity-corrected exposure model (§6) is the honest
+   input.
 
 *Directions considered and declined.* Several defensive add-ons were evaluated and left out
 deliberately, on the principle that each addition should strengthen an existing mechanism or
@@ -761,8 +791,20 @@ noise when $n_{cp}$ is not a real exposure count. (F3, §6/C.3) The semi-synthet
 recovers the ranking on Coat but fails on an organically-MNAR MovieLens slice, because that
 slice has no true MAR block. Two weaker signals: Polis cluster reconstruction is strong on some
 conversations (vTaiwan ARI $0.59$) and near-chance on others (football-concussions $0.04$), and
-divisiveness $D(p)$ tracks group spread except on very low-conflict conversations. F1 and F2 are
-the two the design most needs to answer; both are taken up as open problems in §13.
+divisiveness $D(p)$ tracks group spread except on very low-conflict conversations.
+
+**Both headline findings were then fixed, and the fixes are the shipped default.** After a
+literature survey (trust-metric and welfare/risk/robust-statistics), candidate repairs were
+prototyped against the *same* benchmarks and promoted into the core. F1: the outgoing-diversity
+transmit weight (§5) collapses the RfA ring from the $100$th percentile back to the $0$th at
+every $K$, with honest ranking unchanged (Spearman $1.0$). F2: exposure-weighted empirical-Bayes
+shrinkage plus the nash aggregator (§4.2) lift $B_{\mathrm{LCB}}$ to $b_p$ parity on a balanced
+Community Notes sample and to Spearman $0.97$ (from $0.80$) against Polis's true cross-group
+support. The validation suite's F1/F2 tests, originally written to *document* the failures, now
+run green against the fixed code and guard against regression; F3 remains a standing caveat on
+the semi-synthetic recipe (use a genuinely-MAR base matrix), not a code defect. This
+find-it-then-fix-it loop — real data surfaces a failure, cross-disciplinary math supplies the
+repair, the same benchmark confirms it — is exactly what Appendix C is for.
 
 ## Appendix D. Reference architecture for a fediverse deployment
 

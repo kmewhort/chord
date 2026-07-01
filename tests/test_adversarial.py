@@ -43,22 +43,48 @@ def test_sockpuppet_budget_sharding_gains_nothing():
 
 
 def test_fresh_sybil_gets_minimal_trust():
-    # An honest author earns approval from MANY raters across both poles; a Sybil
-    # author is boosted only by a single colluding puppet. EigenTrust (rater-
-    # outgoing normalized) must give the honest author more credibility than the
-    # Sybil, because trust flows from many independent raters, not one (§5, §10).
-    posts = {"honest_post": Post("honest_post", "H"),
-             "sybil_post": Post("sybil_post", "S1")}
+    # An honest author earns approval from MANY *diverse* raters; a Sybil author is
+    # boosted only by a single-target colluding puppet. EigenTrust (rater-outgoing
+    # normalized, with the §5 out-diversity transmit weight) must give the honest
+    # author more credibility than the Sybil: trust flows from many independent
+    # raters who spread their approval, not from one single-purpose puppet (§5, §10).
+    posts = {"pH1": Post("pH1", "H"), "pH2": Post("pH2", "H2"),
+             "pH3": Post("pH3", "H3"), "sybil_post": Post("sybil_post", "S1")}
     rx = []
     for u in range(10):
-        rx.append(Reaction(u, "honest_post", 1.0))  # broad approval of the honest post
-    rx.append(Reaction("S2", "sybil_post", 1.0))     # lone puppet boosts the Sybil
-    users = list(range(10)) + ["S1", "S2", "H"]
+        # honest raters approve several honest authors → diverse outgoing trust
+        rx.append(Reaction(u, "pH1", 1.0))
+        rx.append(Reaction(u, "pH2", 1.0))
+        rx.append(Reaction(u, "pH3", 1.0))
+    rx.append(Reaction("S2", "sybil_post", 1.0))     # lone single-target puppet
+    users = list(range(10)) + ["S1", "S2", "H", "H2", "H3"]
     cfg = ChordConfig(d=3, mf_iters=40)
     res = MatrixFactorization(cfg, seed=0).fit(rx, posts)
     lam = compute_lambda(rx, posts, res, users, cfg)
     # the honest author out-accrues the Sybil author
     assert lam["H"] > lam["S1"]
+
+
+def test_sybil_ring_cannot_harvest_influence():
+    # The §5 ring defense (App C.5): a ring of K single-target puppets all boosting
+    # one target must NOT lift that target above honest, diversely-approved authors.
+    # Out-diversity zeroes each puppet's transmitted mass (out-degree 1), so the
+    # target harvests nothing regardless of K.
+    posts = {"pH1": Post("pH1", "H"), "pH2": Post("pH2", "H2"),
+             "ring_post": Post("ring_post", "TARGET")}
+    rx = []
+    for u in range(8):                                # diverse honest approval
+        rx.append(Reaction(u, "pH1", 1.0))
+        rx.append(Reaction(u, "pH2", 1.0))
+    K = 50
+    for i in range(K):                                # a big single-target ring
+        rx.append(Reaction(f"sybil{i}", "ring_post", 1.0))
+    users = list(range(8)) + ["H", "H2", "TARGET"] + [f"sybil{i}" for i in range(K)]
+    cfg = ChordConfig(d=3, mf_iters=40)
+    res = MatrixFactorization(cfg, seed=0).fit(rx, posts)
+    lam = compute_lambda(rx, posts, res, users, cfg)
+    # even a 50-puppet ring leaves its target below the honestly-approved author
+    assert lam["TARGET"] < lam["H"]
 
 
 def test_brigade_creates_penalized_split():

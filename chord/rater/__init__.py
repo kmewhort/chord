@@ -5,7 +5,12 @@ estimate; indiscriminate scrollers barely move it. Two earned quantities feed of
 the same geometry — scout precision and the recursive cross-divide credibility
 lambda — and influence recycling keeps them from calcifying.
 """
-from .eigentrust import build_trust_matrix, compute_lambda, eigentrust
+from .eigentrust import (
+    build_trust_matrix,
+    compute_lambda,
+    eigentrust,
+    outgoing_diversity_weights,
+)
 from .quality import blend_lambda, quality_tracking_weight
 from .scout import compute_scout_precision
 from .recycling import apply_recycling
@@ -13,6 +18,7 @@ from .recycling import apply_recycling
 __all__ = [
     "build_trust_matrix",
     "eigentrust",
+    "outgoing_diversity_weights",
     "compute_lambda",
     "quality_tracking_weight",
     "blend_lambda",

@@ -25,7 +25,7 @@ from chord.rater.eigentrust import build_trust_matrix, compute_lambda
 from chord.types import Post, Reaction
 
 from . import _modeling as M
-from ._common import record_finding, require
+from ._common import require
 from .datasets import signed_nets as sn
 
 
@@ -92,17 +92,15 @@ def test_sybil_ring_cannot_buy_top_influence(rfa_fit):
         print(f"[rfa §5]   K={K:>3}  target λ={tgt_lam:.5f}  "
               f"percentile among {len(users):,} real editors={pct:5.1f}%")
 
-    # The §5 claim: a fresh-account ring is starved — it cannot reach the top
-    # decile of established editors no matter how many colluders it adds.
+    # The §5 guarantee (fix now shipped, App C.5): the out-diversity transmit
+    # weight zeroes each single-target puppet's contribution, so a fresh-account
+    # ring cannot reach the top decile of established editors at any K. This test
+    # documented the original finding (ring → 100th percentile); it now verifies the
+    # fix. Flip `config.sybil_out_diversity=False` to reproduce the old vulnerability.
     worst = max(pct_by_k.values())
-    if worst >= 90.0:
-        record_finding(
-            f"§5 Sybil starvation is incomplete: a ring of fresh accounts all "
-            f"boosting one target lifts it to the {worst:.0f}th percentile of real "
-            f"editor influence (percentile by ring size K: "
-            f"{ {k: round(v, 1) for k, v in pct_by_k.items()} }). Row-stochastic "
-            f"teleport-floor eigentrust starves the *sybils* (each keeps only floor "
-            f"mass) but the *target* harvests their redirected baseline mass, so "
-            f"influence grows with ring size. The defense rests entirely on the "
-            f"identity port's forge-cost (outside the §5 math)."
-        )
+    assert worst < 90.0, (
+        f"REGRESSION: a Sybil ring reached the {worst:.0f}th percentile of real "
+        f"editor influence (percentile by ring size K: "
+        f"{ {k: round(v, 1) for k, v in pct_by_k.items()} }). The §5 out-diversity "
+        f"ring defense (chord.rater.eigentrust) is not working."
+    )
