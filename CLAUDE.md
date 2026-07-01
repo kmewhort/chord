@@ -2,8 +2,11 @@
 
 Orientation for agents working on this repo. Read this first, then skim
 `README.md` (user-facing) and the whitepaper
-`strength-ranked-attention-whitepaper-2.md` (the spec — code is faithful to it
-section-by-section).
+`whitepaper/CHORD-whitepaper.md` (the spec — code is faithful to it
+section-by-section). The paper is Markdown with LaTeX math; `whitepaper/compile.sh`
+renders it to `whitepaper/CHORD-whitepaper.pdf` via pandoc + xelatex (see
+`whitepaper/header.tex` and the `fit-codeblocks.lua` filter that scales the wide
+Appendix D.1 diagram). Edit the `.md` and rebuild the PDF when you change the spec.
 
 ## What this is
 

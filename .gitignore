@@ -11,3 +11,10 @@ htmlcov/
 .venv/
 venv/
 *.so
+
+# LaTeX build artifacts from whitepaper/compile.sh (the .pdf itself is committed)
+whitepaper/*.aux
+whitepaper/*.log
+whitepaper/*.toc
+whitepaper/*.out
+whitepaper/dbg.*
