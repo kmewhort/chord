@@ -365,7 +365,12 @@ $$
 $M\in[0,1]$ is the master dial. $M=0$: give me what my side likes, divisiveness included
 (engagement-like). $M=1$: pure bridging — broad tested support only, partisan lean ignored,
 divisiveness penalized. This is a **consumption** choice and therefore ungameable — it only
-changes the chooser's own feed.
+changes the chooser's own feed. Note $M=1$ is *not* the welfare-optimal setting: in the
+closed-loop simulator (Appendix C.4) $M=1$ is **Pareto-dominated by an interior $M\approx0.7$**,
+which delivers more genuine (quality $\times$ bridged) value *and* less divisiveness *and* no
+loss of satisfaction — keeping a little personalization surfaces content that is both liked
+and actually good, whereas the pure-bridging corner over-corrects. The default sits near this
+knee, not at the extreme.
 
 Here $A$ is the *fixed* ($\rho=1$) divide-weighting of §4.1 and $D(p)=y_p^\top A\,y_p$ is
 likewise defined at $\rho=1$ (Appendix A); the $\rho$ knob enters the value **exactly once**,
@@ -520,13 +525,23 @@ subsystem.
   a single-target puppet forwards zero trust, so the ring collapses to the floor at any size
   (§5, Appendix C.5, validated on RfA). Sharding across accounts therefore gains nothing, for
   puppets *or* their beneficiary; the optional seeded-teleport asymmetry plus the identity
-  port's forge-cost (§11) close the theoretical remainder.
+  port's forge-cost (§11) close the theoretical remainder. **Residual (found in the simulator,
+  App C.4):** a *distributed* ring that camouflages puppets across clusters — each rating
+  genuine content to embed in a real cluster, then boosting one target — manufactures fake
+  cross-cluster support that defeats the $B_{\mathrm{LCB}}$ min *and* is invisible to the
+  out-diversity weight (the puppets are not single-target *raters*). A coordination discount on
+  correlated approvers (`coordination_penalty`, the COCM / pairwise-bounded idea) only
+  *partially* contains it; robustly neutralizing a camouflaged ring is open (§13.10).
 - **Brigading** — two independent defenses: a brigade of fresh accounts has no cross-divide
   trust path, and a brigade *creates* a split distribution that the divisiveness term and
   the $B_{\mathrm{LCB}}$ min-over-clusters penalize. Gaming lowers the score.
 - **Bridging-bait (Goodhart)** — shallow universal content (cat memes) can score high
-  bridged support; the depth factor $\theta_{\text{depth}}$ resists this but does not
-  eliminate it.
+  bridged support. The depth handling now resists it structurally: a per-post depth/quality
+  signal both *rewards* genuine depth and multiplicatively **gates** a shallow post's positive
+  bridged support toward a floor, so breadth alone cannot buy a crown. In the simulator this
+  roughly halved the gap to an oracle and cut a bait author's reach ~6× (§4.2, App C.4). It
+  reduces rather than eliminates the failure — a baiter who can forge a high depth *signal*
+  still profits, so the signal's own integrity matters.
 - **High-precision collusive clique** — genuinely the hardest residual: colluding experts
   read like independently-delighted experts, and peer-prediction weighting has equilibria
   where raters agree with *each other* rather than with truth. Only timing/provenance
@@ -610,6 +625,16 @@ Honest residuals, several of which no fix fully removes:
    an aggregator; and the shrinkage is only as good as the exposure count $n_{cp}$ feeding it —
    a rating-count proxy works, but a real propensity-corrected exposure model (§6) is the honest
    input.
+10. **The camouflaged distributed ring is open** (§10, found in the simulator, App C.4). A ring
+    that embeds puppets in *every* opinion cluster (by rating genuine content) and has them all
+    boost one target fabricates cross-cluster support that beats $B_{\mathrm{LCB}}$'s min *and*
+    slips past the out-diversity λ weight (the puppets are not single-target raters). A
+    coordination discount on correlated approvers is only a partial fix, because camouflage
+    dilutes the co-approval signal. The promising-but-unbuilt defenses are heavier: spectral
+    spike-removal on the rater co-approval matrix (planted-clique / BBP detection), co-approval
+    community detection, or COCM pairwise-bounded matching over the reception estimate. This is
+    the collusion analogue of the high-precision clique (#5) — timing/provenance and costly
+    identity remain the ultimate backstops.
 
 *Directions considered and declined.* Several defensive add-ons were evaluated and left out
 deliberately, on the principle that each addition should strengthen an existing mechanism or
