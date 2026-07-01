@@ -125,6 +125,12 @@ class ChordConfig:
     # boosting one target) fakes cross-cluster support that min-over-clusters misses,
     # but cannot hide that its boosters co-approve in lockstep. 0 ⇒ off.
     coordination_penalty: float = 0.0
+    # Stronger, camouflage-resistant collusion defense (§13.10): subtract
+    # `collusion_loyalty_penalty · manufactured_fraction(author)` from B_LCB, where
+    # manufactured_fraction is the rolling fraction of an author's positive support
+    # from raters who approve nearly *all* its posts window-after-window — the one
+    # signature a camouflaged distributed ring cannot erase. 0 ⇒ off.
+    collusion_loyalty_penalty: float = 0.0
 
     # --- Scout precision (§5) ---
     scout_alpha: float = 0.5  # rank-decay in q_scout

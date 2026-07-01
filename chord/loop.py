@@ -35,6 +35,7 @@ from .model import (
     DivisivenessModel,
     FactorizationResult,
     MatrixFactorization,
+    CollusionTracker,
     coordination_scores,
     fit_divisiveness,
 )
@@ -98,6 +99,7 @@ class Chord:
         self.budget = AuthorBudgetLedger(self.config)
         self.exploration = ExplorationPool(self.config, seed=seed)
         self.controller = ConcentrationController(self.config)
+        self.collusion = CollusionTracker()   # rolling loyal-bloc detector (§13.10)
         self.state: Optional[WindowState] = None
 
     # ------------------------------------------------------------- learning
@@ -167,6 +169,17 @@ class Chord:
                 v = bridging.b_lcb.get(pid)
                 if v is not None and np.isfinite(v):
                     bridging.b_lcb[pid] = v - cfg.coordination_penalty * score
+        # stronger, camouflage-resistant defense: discount authors whose support is
+        # manufactured by a loyal bloc across windows (§13.10).
+        if cfg.collusion_loyalty_penalty > 0.0:
+            self.collusion.update(reactions, post_authors)
+            for pid in list(bridging.b_lcb.keys()):
+                a = post_authors.get(pid)
+                v = bridging.b_lcb.get(pid)
+                if a is not None and v is not None and np.isfinite(v):
+                    frac = self.collusion.manufactured_fraction(
+                        a, clusters.assignments, clusters.n_clusters)
+                    bridging.b_lcb[pid] = v - cfg.collusion_loyalty_penalty * frac
         realized_strength = dict(bridging.b_lcb)
         # replace -inf (unseen) with a low finite floor for downstream arithmetic
         for pid, v in realized_strength.items():
