@@ -80,13 +80,16 @@ class RollingStore:
         reactions = observed approval + vouches + derived exposed-no-reaction for every
         served (user, post) the user did not react to. exposures = the served skeletons.
         """
-        reactions = list(self._reactions)
+        posts = {p.id: p for p in self.posts.values()}
+        # Invariant: never hand the core a reaction on a post it doesn't know (likes can
+        # target non-post records, and a liked post is a candidate only if candidates_from_
+        # likes kept it). Drop orphan reactions here.
+        reactions = [r for r in self._reactions if r.post_id in posts]
         neg = -abs(self.config.chord.exposed_no_reaction_c)
         for (user, post) in self._served_pairs:
-            if (user, post) not in self._reacted:
+            if post in posts and (user, post) not in self._reacted:
                 reactions.append(Reaction(user, post, neg,
                                           kind=ReactionKind.EXPOSED_NO_REACTION))
-        posts = {p.id: p for p in self.posts.values()}
         return reactions, list(self._served), posts
 
     def roll(self, now: float) -> None:

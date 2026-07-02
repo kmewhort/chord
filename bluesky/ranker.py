@@ -25,6 +25,7 @@ from chord.types import Exposure, ExposureSource, Id, Post, Reaction
 
 from .config import BlueskyConfig
 from .identity import DidIdentityPort
+from .mapping import post_from_uri
 from .store import RollingStore
 
 
@@ -69,6 +70,14 @@ class ChordFeed:
         if reaction is not None:
             self.store.add_reaction(reaction)
             self.identity.observe(reaction.user_id, reaction.timestamp or now)
+            # make an actively-liked post a candidate (its author DID is in the URI), so the
+            # feed can rank by the engagement a post is receiving, not just fresh posts.
+            if (self.config.candidates_from_likes and reaction.value > 0.0
+                    and reaction.post_id not in self.store.posts):
+                target = post_from_uri(reaction.post_id, reaction.timestamp or now)
+                if target is not None:
+                    self.store.add_post(target)
+                    self.identity.observe(target.author_id, target.created_at or now)
 
     # ------------------------------------------------------------ learning
     def maybe_fit(self, now: float) -> bool:

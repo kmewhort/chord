@@ -75,6 +75,36 @@ def test_serving_logs_exploration_and_derives_exposed_no_reaction():
     assert any(r.kind is ReactionKind.EXPOSED_NO_REACTION for r in reactions)
 
 
+def test_candidates_from_likes_makes_an_actively_liked_post_rankable():
+    # a post's author DID is in its URI, so a like can make it a candidate without our
+    # having seen its create — which is where the reception signal lives.
+    feed = ChordFeed(BlueskyConfig(), seed=0)
+    uri = "at://did:plc:author/app.bsky.feed.post/xyz"
+    feed.ingest(reaction=Reaction("did:plc:liker", uri, 0.5, ReactionKind.FAVORITE, 1.0), now=1.0)
+    assert uri in feed.store.posts
+    assert feed.store.posts[uri].author_id == "did:plc:author"
+    # with the flag off, a like on an unseen post is not synthesized
+    off = ChordFeed(BlueskyConfig(candidates_from_likes=False), seed=0)
+    off.ingest(reaction=Reaction("did:plc:liker", uri, 0.5, ReactionKind.FAVORITE, 1.0), now=1.0)
+    assert uri not in off.store.posts
+
+
+def test_orphan_reactions_never_reach_the_core():
+    # likes can target non-post records (custom lexicons) or uncaptured posts; the store
+    # must not hand the core a reaction on a post it doesn't know (else fit_window raises).
+    feed = ChordFeed(BlueskyConfig(candidates_from_likes=False), seed=0)
+    known = "at://did:plc:a/app.bsky.feed.post/p"
+    feed.ingest(post=Post(known, "did:plc:a", created_at=1.0), now=1.0)
+    feed.ingest(reaction=Reaction("did:plc:u", known, 0.5, ReactionKind.FAVORITE, 1.0))
+    feed.ingest(reaction=Reaction("did:plc:u", "at://did:plc:x/site.standard.document/d",
+                                  0.5, ReactionKind.FAVORITE, 1.0))          # non-post record
+    feed.ingest(reaction=Reaction("did:plc:u", "at://did:plc:y/app.bsky.feed.post/unseen",
+                                  0.5, ReactionKind.FAVORITE, 1.0))          # uncaptured post
+    reactions, _, posts = feed.store.build_window()
+    assert all(r.post_id in posts for r in reactions)       # no orphans handed to the core
+    assert any(r.post_id == known for r in reactions)       # the known post's like survives
+
+
 def test_budget_binds_to_did_identity_and_forge_cost_grows_with_age():
     feed = _feed()
     feed.identity.now = 100.0

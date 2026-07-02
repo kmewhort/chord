@@ -89,24 +89,29 @@ the feed's `at://…/app.bsky.feed.generator/<rkey>` URI in the app (share
 
 **The "does it need mass?" question has two layers:**
 
-1. *The bridging ranking works from day one.* The factorization, opinion clusters, `B_LCB`
-   (cross-cluster support), and λ are computed from firehose likes/reposts — the *whole
-   network's* reactions — so they are well-fed immediately. What this needs is not subscriber
-   count but a candidate set with real reaction volume **and genuine opinion diversity** (so
-   clusters mean something); any non-trivial topic slice has that.
-2. *The causal de-confounding needs your own serving traffic.* CHORD's identifiability (§6.2)
-   — the IPW correction, the ε-exploration anchor, and the exposed-no-reaction weak negative —
-   is powered by the exposures the feed logs from **its own** served skeletons. Firehose likes
-   are confounded (people liked what Bluesky's *main* algorithm showed them); CHORD can only
-   de-confound the exposure it controls, i.e. what it serves. With no subscribers this layer is
-   dormant and the feed runs *observationally* (bridging on a biased sample). As it serves
-   subscribers (including the random ε slice) and they react, those reactions match its logged
-   exposures with known π and the de-confounding progressively engages. The code degrades
-   gracefully across this line — no served exposures ⇒ `fit_window` still runs on firehose
-   reactions, just without propensity weights or the ε anchor.
+1. *The learning machinery runs from day one.* The factorization, opinion clusters, `B_LCB`,
+   and λ are computed from firehose likes/reposts — the whole network's reactions — and the
+   candidate set fills immediately (a post being **actively liked** becomes a candidate, its
+   author DID read from the like's target URI, via `candidates_from_likes`; a fresh post has no
+   likes yet, so ranking only created posts would be starved).
+2. *But bridging can't discriminate on likes alone — and that plus de-confounding is what the
+   feed's own serving fixes.* This is the subtle, load-bearing point, and running it live made
+   it concrete: **the firehose is all-positive** (Bluesky has likes/reposts, no "dislike"), so
+   every liked post's reception is ≈ +0.5 and `B_LCB` comes out **flat** — in an 18k-event live
+   sample, `B_LCB` std ≈ **0.013**, essentially no signal to rank on. Bridging needs *contrast*
+   — posts some clusters embrace and others don't — and that negative signal is the
+   **exposed-no-reaction** weak negative (§4.1), which exists *only* once the feed serves a post
+   and observes non-reaction. The same served exposures also carry the known propensity and the
+   ε anchor that de-confound the selection bias (§6.2). So the feed's own serving traffic isn't a
+   nicety for de-confounding; **it is what makes bridging possible at all** on a like-only
+   network. The code degrades gracefully across this line — no served exposures ⇒ `fit_window`
+   still runs, just on flat, positive-only signal (near-uniform ranking) until serving begins.
 
-So the path is: **firehose-only cold start** (observational bridging, solo) → **a handful of
-subscribers** (its own ε-logging begins) → **de-confounded steady state**.
+So the path is: **firehose-only cold start** (candidates fill, but `B_LCB` is flat — the feed is
+essentially recency/exploration) → **a handful of subscribers** (its served skeletons start
+producing exposed-no-reaction negatives + the ε anchor) → **bridging + de-confounded steady
+state**. The corollary: seed *some* serving traffic early (even a few pinned subscribers, or a
+scripted ε-serving warm-up) — that, not raw firehose volume, is what turns bridging on.
 
 ### Will a dev run drown in the firehose?
 

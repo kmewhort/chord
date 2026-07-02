@@ -34,6 +34,21 @@ def post_uri(did: str, rkey: str) -> str:
     return f"at://{did}/app.bsky.feed.post/{rkey}"
 
 
+def post_from_uri(uri: str, created_at: float = 0.0) -> Optional[Post]:
+    """Synthesize a candidate :class:`Post` from a like/repost *target* URI.
+
+    A post's author DID is encoded in its AT-URI (``at://<did>/app.bsky.feed.post/…``),
+    so a post that is being actively liked can become a rankable candidate without our
+    having seen its create — which is exactly where the cross-cluster reception signal
+    lives (a fresh post has no likes yet). Returns None if ``uri`` is not a feed post."""
+    if not isinstance(uri, str) or not uri.startswith("at://"):
+        return None
+    parts = uri[len("at://"):].split("/")
+    if len(parts) != 3 or parts[1] != "app.bsky.feed.post" or not parts[0] or not parts[2]:
+        return None
+    return Post(id=uri, author_id=parts[0], created_at=created_at)
+
+
 def parse_created_at(value: Optional[str], fallback_us: Optional[int] = None) -> float:
     """ISO-8601 ``createdAt`` → epoch seconds. Falls back to the Jetstream
     ``time_us`` microsecond stamp, then 0.0. Records carry attacker-controlled

@@ -50,6 +50,10 @@ class BlueskyConfig:
     window_seconds: float = 900.0               # a learning window = 15 min of events
     candidate_horizon_seconds: float = 6 * 3600.0   # how far back a post stays a candidate
     max_candidates: int = 4000                  # cap scored per request (newest first)
+    # A post accumulating likes is where the cross-cluster reception signal lives, so make
+    # a like's *target* a candidate too (its author DID is in the URI) — not just freshly
+    # created posts, which have no likes yet. This is what gives a like-driven feed signal.
+    candidates_from_likes: bool = True
 
     # --- serving ---
     default_slots: int = 50                     # feed skeleton length per getFeedSkeleton
