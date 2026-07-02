@@ -66,7 +66,11 @@ turning them all on undermines validated sub-claims via interaction — E9's app
 prior props up high-approval bait/ring targets and *raises* extremity, E4 false-positives as a
 gate on clustered data, E2 subsumes the anchor cap, budget_memory lets a firehose accumulate
 budget. They are individually valid but opt-in; enabling any is a per-deployment choice needing
-its own re-validation.
+its own re-validation. **E9 was rebased onto the quality channel** (`hierarchical_prior_quality`,
+default when E9 is on, `chord/model/priors.py`): the author lift is asymmetric — approval only
+*lowers* the prior; *raising* it needs earned cross-cluster vouches (§10) — which fixes the
+extremity/bait/ring harms (sim: extremity Δ−0.02 vs the old +0.16) while keeping the firehose
+win. It stays gated pending a default-flip re-validation, but is no longer goal-conflicting.
 | §3/App D | `chord/ports/` | `base` protocols + `adapters` (crude defaults only) |
 | App C.3 | `chord/eval/mnar_harness.py` | Semi-synthetic MNAR experiment |
 | App C.4 | `chord/simulator/` | `population`, `content`, `response` (non-circular DGP), `rankers` (CHORD vs engagement/oracle/…), `metrics` (welfare), `engine` (ranker-driven loop + sybil-ring adversary). See `SIMULATOR.md`. |

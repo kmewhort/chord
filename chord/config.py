@@ -103,6 +103,14 @@ class ChordConfig:
     hierarchical_prior: bool = False
     hierarchical_n0_author: float = 8.0   # author-history prior strength
     hierarchical_decay: float = 0.7       # cross-window decay of author reception
+    # E9-quality (§4.2/§13.11): base the author lift on the *quality* (vouch) channel, not
+    # approval history. Asymmetric — a bad *approval* record can only LOWER the prior (keeps
+    # the firehose pre-emption), but RAISING it above the cluster baseline is licensed only by
+    # the author's earned cross-cluster *vouches* (the §10 depth channel). So a broadly-
+    # approved-but-shallow bait and a partisan-consistent author (approval, no vouches) are no
+    # longer propped up, while a demonstrated-merit author gets the head-start. This is the
+    # rebase that removes E9's approval-prior harms (props up bait/ring, raises extremity).
+    hierarchical_prior_quality: bool = True
     # E2 (§6/§13.2): calibrate organic reception against the ε-slice — fit a per-cluster
     # bias model r_exp≈a+b·r_org on paired (organic, exploration) reception (accumulated
     # across windows) and predict unconfounded reception everywhere. Off = no correction.

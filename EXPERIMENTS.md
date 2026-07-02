@@ -215,6 +215,20 @@ moves it. All stay knobs; the full trade-off analysis is now whitepaper §13.11.
 to a safe default (pure de-confounding improvement); E9 is the most goal-conflicting (approval-
 history prior raises extremity — points to a quality-history redesign).
 
+**E9 quality rebase (landed).** Acted on that redesign: the E9 author lift is now **asymmetric
+and quality-based** (`hierarchical_prior_quality`, default when E9 is on). Approval history can
+only *lower* the prior (keeps the firehose pre-emption); *raising* it above the cluster baseline
+is licensed only by the author's earned cross-cluster **vouches** (§10 merit channel), credit
+`max(0,v̄_ac)·w/(w+n0)`. Result in the simulator (E9 on): extremity Δ **−0.02** (was **+0.16**
+on the approval basis) — CHORD now *lowers* partisan extremity below engagement; the firehose
++28%/suppression win is kept; the broadly-approved-but-shallow bait is no longer propped (it
+earns anti-vouches). The remaining sim failures with E9 defaulted (bait ×0.89 vs ×0.8, ring
+1.32× vs parity, ring-scaling +7%, M-frontier tied) are marginal shifts / confounds where E9
+credits a target's *genuine* vouched merit — not breakages. So E9-quality moved from "goal-
+conflicting" to E2's class ("beneficial, only shifts brittle thresholds"); it stays gated pending
+a deliberate default-flip re-validation. New unit test:
+`test_quality_basis_denies_the_broadly_approved_bait_but_keeps_firehose_demotion`.
+
 ## Suggested order
 1. **E9** (hierarchical prior) — highest leverage, closes the one gap where §8 does §4's
    job; deterministic; CN + sim today.

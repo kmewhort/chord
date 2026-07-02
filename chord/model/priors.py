@@ -58,9 +58,19 @@ def hierarchical_priors(
     n0: float,
     n0_author: float,
     n_clusters: int,
+    vouch_tracker: Optional[AuthorClusterReception] = None,
 ) -> Dict[Id, List[float]]:
     """Per-post, per-cluster shrinkage prior ``prior_cp`` (uses ``tracker`` history only —
-    call before ``tracker.update`` for this window so priors are leave-current-out)."""
+    call before ``tracker.update`` for this window so priors are leave-current-out).
+
+    If ``vouch_tracker`` is given (E9-quality), the author lift is **asymmetric**: the
+    approval history can only *lower* the prior below the cluster baseline (firehose pre-
+    emption), while *raising* it above the baseline is licensed only by the author's earned
+    cross-cluster **vouches** — a merit credit ``max(0, v̄_ac)·(w/(w+n0))`` per cluster. So a
+    broadly-approved-but-unvouched bait (and a partisan-consistent author) cannot buy a prior
+    lift with approval alone; only demonstrated quality does. Without ``vouch_tracker`` the
+    original symmetric approval-history rule is used.
+    """
     # cluster level: this window's overall reception per cluster, shrunk toward μ
     csum: Dict[int, float] = defaultdict(float)
     cwt: Dict[int, float] = defaultdict(float)
@@ -78,6 +88,15 @@ def hierarchical_priors(
         for c in range(n_clusters):
             am, aw = tracker.author_mean(a, c)
             cp = cluster_prior[c]
-            ap[(a, c)] = cp if am is None else cp + (aw / (aw + n0_author)) * (am - cp)
+            if am is None:
+                ap[(a, c)] = cp
+                continue
+            shrunk = cp + (aw / (aw + n0_author)) * (am - cp)
+            if vouch_tracker is None:
+                ap[(a, c)] = shrunk                       # symmetric: approval sets the prior
+            else:
+                vm, vw = vouch_tracker.author_mean(a, c)  # merit credit licenses raising only
+                credit = 0.0 if vm is None else max(0.0, vm) * (vw / (vw + n0_author))
+                ap[(a, c)] = min(shrunk, cp + credit)     # approval lowers freely; vouches cap the lift
     return {pid: [ap[(a, c)] for c in range(n_clusters)]
             for pid, a in post_authors.items()}

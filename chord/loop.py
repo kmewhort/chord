@@ -114,6 +114,8 @@ class Chord:
         self.reception_anchor = ExplorationAnchor()   # exploration-anchored cap (§6.2/§13.10)
         self.author_reception = AuthorClusterReception(  # E9 hierarchical-prior history
             decay=self.config.hierarchical_decay)
+        self.author_vouch_reception = AuthorClusterReception(  # E9-quality merit history
+            decay=self.config.hierarchical_decay)
         self.bias_calibrator = BiasCalibrator()   # E2 ε-slice bias model (§6/§13.2)
         self.state: Optional[WindowState] = None
 
@@ -217,11 +219,14 @@ class Chord:
         # estimated content depth q_p on the vouch channel (§10) — earned, not author-set.
         # λ-weighted so a fresh sybil's vouch counts ~0; opinion clusters are shared.
         depth: Dict[Id, float] = {}
+        vouch_reception: Dict[Id, Mapping[int, tuple]] = {}
         if vouch_reactions:
             vouch_weights = compute_ipw_weights(
                 vouch_reactions, self.propensity_model, cfg,
                 rater_lambda=rater_lambda, exposures=exposure_index,
             )
+            # per-cluster vouch reception — feeds both depth q_p and the E9-quality merit prior
+            vouch_reception = cluster_reception(vouch_reactions, vouch_weights, clusters)
             depth = estimate_depth(vouch_reactions, vouch_weights, clusters, cfg)
 
         reception_caps = None
@@ -232,10 +237,14 @@ class Chord:
         # leave-current-out), then fold this window's reception into the author history.
         priors = None
         if cfg.hierarchical_prior:
+            vtracker = self.author_vouch_reception if cfg.hierarchical_prior_quality else None
             priors = hierarchical_priors(
                 reception, post_authors, self.author_reception, result.mu,
-                cfg.bridging_shrinkage_n0, cfg.hierarchical_n0_author, clusters.n_clusters)
+                cfg.bridging_shrinkage_n0, cfg.hierarchical_n0_author, clusters.n_clusters,
+                vouch_tracker=vtracker)
             self.author_reception.update(reception, post_authors)
+            if cfg.hierarchical_prior_quality:
+                self.author_vouch_reception.update(vouch_reception, post_authors)
         scorer = BridgingScorer(cfg)
         bridging = scorer.score(result, clusters, post_authors, reception, reception_caps, priors)
 
