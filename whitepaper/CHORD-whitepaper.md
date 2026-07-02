@@ -794,6 +794,23 @@ Honest residuals, several of which no fix fully removes:
     active where the level guard is dormant — while staying silent on healthy noise. (It
     detects a *shift*, so a system that begins concentrated shows no drift to catch — which is
     change-point detection working as intended; the realistic attack transitions from healthy.)
+13. **The randomization portfolio — ε is a scarce resource, not just a floor.** Count the jobs
+    the exploration slice now holds: causal identification (§6.2), cold-start and provider
+    fairness (§8), estimator-stability excitation (§9.3), *and* every honest answer to the
+    problems above — confounding calibration (#2/E2), collusion and ring audit (#5/#10, E5/E12),
+    performativity probes (#1/E1), and amplification-collar re-certification (#3/E3). These all
+    draw on the *same* floored budget ε, and they compete. So ε warrants an explicit
+    **allocation policy**, which is itself a bandit over information value: `RandomizationPortfolio`
+    keeps a floor on every demand — the property that makes identification, fairness and stability
+    hold, so ε stays a floored invariant *per arm* — then water-fills the remainder toward the
+    demand whose current marginal value is highest. Under a fixed ε budget with shifting needs
+    (cold-start early, an audit spike when an attack begins), the floored bandit captures ~9% more
+    total information value than a uniform split and ~29% more during the attack window,
+    approaching the oracle water-fill. This both subsumes several entries above (they are demands
+    *on* the portfolio) and sharpens the paper's core argument: the reason ε is a floored system
+    invariant is not identifiability alone — it is that *every* honest answer to CHORD's open
+    problems turns out to spend randomized exposure, so the commons must be budgeted, not merely
+    guaranteed.
 
 *Directions considered and declined.* Several defensive add-ons were evaluated and left out
 deliberately, on the principle that each addition should strengthen an existing mechanism or

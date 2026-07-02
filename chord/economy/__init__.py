@@ -6,5 +6,7 @@ anti-ossification influence recycling governor.
 """
 from .budget import AuthorBudgetLedger
 from .exploration import BetaPosterior, ExplorationPool
+from .randomization import RandomizationPortfolio
 
-__all__ = ["AuthorBudgetLedger", "ExplorationPool", "BetaPosterior"]
+__all__ = ["AuthorBudgetLedger", "ExplorationPool", "BetaPosterior",
+           "RandomizationPortfolio"]

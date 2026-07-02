@@ -90,11 +90,16 @@ attributed, cross-cluster, high-scout-precision, forge-cost-paid), not a hand-li
 show a criterion-seeded asymmetric teleport preserves the ring-collapse while surviving a
 seed the attacker can't cheaply join.
 
-### E-meta. Randomization portfolio (the ε-pool as a bandit) — *sim*
-Make ε allocation explicit: a bandit over information value across {audition, calibration
-(E2), audit (E5), probe (E1)}. Claim: a value-weighted split beats uniform ε use at total
-delivered value + attack containment under a fixed ε budget — and demonstrates *why* ε is
-a floored invariant (every open-problem fix spends it).
+### E-meta. Randomization portfolio (the ε-pool as a bandit) — ✅ **LANDED** (§13#13)
+Make ε allocation explicit: a floored bandit over information value across {audition,
+calibration (E2), audit (E5/E12), probe (E1)}. Landed as `chord.economy.RandomizationPortfolio`
+(`test_randomization_portfolio.py`): keeps a floor on every arm (so ε stays a floored invariant
+per demand), then water-fills the remainder by learned value. Under a fixed budget with shifting
+needs (cold-start early, an audit spike during an attack) it captures **+9%** total information
+value vs a uniform split (approaching the oracle water-fill) and **+29%** during the attack
+window. Sharpens the paper's core argument (added as §13#13): ε is a floored invariant not for
+identifiability alone but because *every* open-problem fix spends it, so the commons must be
+budgeted, not merely guaranteed.
 
 ## Results — Tier 1 (run)
 
