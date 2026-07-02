@@ -25,7 +25,13 @@ SEEDS = (1, 2, 3)
 def _target_reach(ranker, K):
     vals = []
     for seed in SEEDS:
-        cfg = ChordConfig(d=2, n_clusters=2, mf_iters=25, budget_B0=2.0, budget_max=6.0)
+        # Isolate the out-diversity/loyalty ring defense from E9's quality prior (default-on):
+        # sim ring puppets vouch *honestly* (vouches track truth.quality), so a bigger ring
+        # gives a genuine-quality target more vouch evidence → E9 credits its merit → reach
+        # grows with K, masking the approval-inflation defense under test. Real *fake* vouches
+        # are contained by the vouch channel's own collusion defenses (§10, §13.11).
+        cfg = ChordConfig(d=2, n_clusters=2, mf_iters=25, budget_B0=2.0, budget_max=6.0,
+                          hierarchical_prior=False)
         sim = Simulator(config=cfg, n_users=36, n_slots=6, seed=seed,
                         adaptive_authors=False, sybil_ring_size=K)
         r = sim.run(ranker, n_windows=8)

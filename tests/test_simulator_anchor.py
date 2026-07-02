@@ -31,8 +31,11 @@ SEEDS = (1, 2, 3, 4)
 def _no_ring_true_value(cap):
     tv = []
     for s in SEEDS + (5,):
+        # Isolate the exploration-anchor cap from E9 (now default-on): the quality prior
+        # independently lifts vouched authors' true value, confounding the cap's own
+        # de-confounding effect measured here.
         cfg = ChordConfig(d=2, n_clusters=2, mf_iters=25, budget_B0=2.0, budget_max=6.0,
-                          epsilon_min=0.2, exploration_anchor_cap=cap)
+                          epsilon_min=0.2, exploration_anchor_cap=cap, hierarchical_prior=False)
         sim = Simulator(config=cfg, n_users=36, n_slots=6, seed=s, adaptive_authors=False)
         tv.append(sim.run("chord", n_windows=8).tail("true_value", 4))
     return float(np.nanmean(tv))

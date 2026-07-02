@@ -31,8 +31,15 @@ def _inflation(mode, K, q=0.4, loyalty=0.0):
     ring out-promotes genuine content)."""
     tgt, uni = [], []
     for s in SEEDS:
+        # Isolate the loyalty defense (its job: contain the ring's APPROVAL inflation) from
+        # E9's quality prior (now default-on). In the sim, ring puppets *vouch honestly*
+        # (vouches track truth.quality), so a genuine-quality ring target earns more vouch
+        # evidence from a bigger ring → E9 credits its real merit → adds reach on top of the
+        # inflation the loyalty penalty contains. That merit-crediting is orthogonal to (and
+        # would mask) the defense under test; a real ring's *fake* vouches are caught by the
+        # vouch channel's own out-diversity/loyalty machinery (§10, §13.11).
         cfg = ChordConfig(d=2, n_clusters=2, mf_iters=25, budget_B0=2.0, budget_max=6.0,
-                          collusion_loyalty_penalty=loyalty)
+                          collusion_loyalty_penalty=loyalty, hierarchical_prior=False)
         sim = Simulator(config=cfg, n_users=36, n_slots=6, seed=s, adaptive_authors=False,
                         sybil_ring_size=K, ring_mode=mode, ring_target_quality=q)
         r = sim.run("chord", n_windows=8)

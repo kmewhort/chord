@@ -70,7 +70,12 @@ its own re-validation. **E9 was rebased onto the quality channel** (`hierarchica
 default when E9 is on, `chord/model/priors.py`): the author lift is asymmetric — approval only
 *lowers* the prior; *raising* it needs earned cross-cluster vouches (§10) — which fixes the
 extremity/bait/ring harms (sim: extremity Δ−0.02 vs the old +0.16) while keeping the firehose
-win. It stays gated pending a default-flip re-validation, but is no longer goal-conflicting.
+win. **E9 is now ON by default** (`hierarchical_prior=True`) — the first §13.11 refinement to
+graduate, after a default-flip re-validation. The five shifted sim tests were reconciled: frontier
+re-tuned to weak Pareto dominance; anchor/bait/collusion/adversary isolate E9 (`hierarchical_prior=
+False`) as it confounds tests of *other* mechanisms. Standing caveat (§13.11): the lift now flows
+through the vouch channel, so E9 leans on that channel's out-diversity/loyalty defenses — the ring
+sim tests isolate E9 because the sim's puppets vouch *honestly*. The rest stay gated/opt-in.
 | §3/App D | `chord/ports/` | `base` protocols + `adapters` (crude defaults only) |
 | App C.3 | `chord/eval/mnar_harness.py` | Semi-synthetic MNAR experiment |
 | App C.4 | `chord/simulator/` | `population`, `content`, `response` (non-circular DGP), `rankers` (CHORD vs engagement/oracle/…), `metrics` (welfare), `engine` (ranker-driven loop + sybil-ring adversary). See `SIMULATOR.md`. |

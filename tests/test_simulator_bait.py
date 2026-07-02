@@ -26,7 +26,10 @@ SEEDS = (1, 2, 3, 4)
 def _run(depth_reward, depth_gate):
     tv, bait = [], []
     for s in SEEDS:
+        # Isolate the depth mechanism from E9 (now default-on): the quality prior lifts B_LCB
+        # for vouched authors, confounding the depth gate's isolated effect on the bait.
         cfg = ChordConfig(d=2, n_clusters=2, mf_iters=25, budget_B0=2.0, budget_max=6.0,
+                          hierarchical_prior=False,
                           depth_reward=depth_reward, depth_gate=depth_gate)
         sim = Simulator(config=cfg, n_users=36, n_slots=6, seed=s, adaptive_authors=False)
         r = sim.run("chord", n_windows=8)

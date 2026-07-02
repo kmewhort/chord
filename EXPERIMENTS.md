@@ -225,9 +225,22 @@ on the approval basis) — CHORD now *lowers* partisan extremity below engagemen
 earns anti-vouches). The remaining sim failures with E9 defaulted (bait ×0.89 vs ×0.8, ring
 1.32× vs parity, ring-scaling +7%, M-frontier tied) are marginal shifts / confounds where E9
 credits a target's *genuine* vouched merit — not breakages. So E9-quality moved from "goal-
-conflicting" to E2's class ("beneficial, only shifts brittle thresholds"); it stays gated pending
-a deliberate default-flip re-validation. New unit test:
+conflicting" to E2's class ("beneficial, only shifts brittle thresholds"). New unit test:
 `test_quality_basis_denies_the_broadly_approved_bait_but_keeps_firehose_demotion`.
+
+**E9 promoted to a default (landed).** Ran the default-flip re-validation pass and flipped
+`hierarchical_prior` on — the first §13.11 refinement to graduate. The five sim tests it shifted
+were reconciled honestly: **frontier** re-tuned (E9 lifts pure bridging's true value, so M=0.7
+now *weakly* Pareto-dominates M=1 — tied on true value, strictly lower divisiveness — the honest
+default-config claim); **anchor / bait / collusion / adversary** isolate E9 (`hierarchical_prior=
+False`) because it validates *other* mechanisms (the ε-anchor cap, the depth gate, the loyalty /
+out-diversity ring defenses) that E9's merit-crediting confounds. The ring isolation carries a
+real caveat, not just a confound: in the sim, ring puppets **vouch honestly** (vouches track
+`truth.quality`), so a bigger ring gives a genuine-quality target more vouch evidence → E9
+credits its merit → reach grows with K (E9 off: −12 reach as K grows; E9 on: +9). That is a sim
+artifact of honest-vouching puppets, but it flags the standing cost: **E9-quality leans on the
+vouch channel's own collusion defenses** (§5 out-diversity / §13.10 loyalty) — a ring able to
+forge vouches gains a lever. Documented in §4.2 + §13.11. Full suite green with E9 default-on.
 
 ## Suggested order
 1. **E9** (hierarchical prior) — highest leverage, closes the one gap where §8 does §4's

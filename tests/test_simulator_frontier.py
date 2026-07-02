@@ -43,13 +43,18 @@ def frontier():
 
 def test_interior_M_dominates_pure_bridging(frontier):
     # M≈0.7 Pareto-dominates M=1 on the objectives that matter, at no satisfaction cost.
+    # Under the default config (E9-quality on) E9 lifts *pure* bridging's own true value up
+    # toward the interior's — it relies entirely on B_LCB, which E9 improves — so M=0.7 no
+    # longer *strictly* beats M=1 on true value. The dominance is now weak: no worse on true
+    # value (within noise) and strictly lower divisiveness at no satisfaction cost. The
+    # product lesson — don't push M to 1 — stands.
     mid, pure = frontier[0.7], frontier[1.0]
-    assert mid["true_value"] > pure["true_value"], (
-        f"M=0.7 true value ({mid['true_value']:.4f}) should exceed M=1's "
-        f"({pure['true_value']:.4f})"
+    assert mid["true_value"] >= pure["true_value"] - 5e-3, (
+        f"M=0.7 true value ({mid['true_value']:.4f}) should be at least M=1's "
+        f"({pure['true_value']:.4f}) within noise"
     )
-    assert mid["divisiveness"] <= pure["divisiveness"] + 1e-3, (
-        f"M=0.7 divisiveness ({mid['divisiveness']:.4f}) should not exceed M=1's "
+    assert mid["divisiveness"] < pure["divisiveness"], (
+        f"M=0.7 divisiveness ({mid['divisiveness']:.4f}) should be below M=1's "
         f"({pure['divisiveness']:.4f})"
     )
     assert mid["satisfaction"] >= pure["satisfaction"] - 1e-3, (

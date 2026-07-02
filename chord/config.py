@@ -98,9 +98,10 @@ class ChordConfig:
     depth_gate: float = 0.0
     # E9 (§4.2): shrink B_LCB toward a hierarchical author×cluster prior (author history →
     # cluster mean → global μ) instead of μ, so an untested one-sided firehose is
-    # predicted-low by B_LCB itself, not left to §8's budget. Deterministic. Off preserves
-    # the plain-μ prior.
-    hierarchical_prior: bool = False
+    # predicted-low by B_LCB itself, not left to §8's budget. Deterministic. NOW ON BY DEFAULT
+    # (the first §13.11 refinement to graduate) once rebased onto the quality channel below;
+    # Off preserves the plain-μ prior.
+    hierarchical_prior: bool = True
     hierarchical_n0_author: float = 8.0   # author-history prior strength
     hierarchical_decay: float = 0.7       # cross-window decay of author reception
     # E9-quality (§4.2/§13.11): base the author lift on the *quality* (vouch) channel, not

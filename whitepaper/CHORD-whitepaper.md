@@ -766,8 +766,11 @@ Honest residuals, several of which no fix fully removes:
    It is deterministic, so reproducibility is untouched; in the simulator, turning it on raises
    delivered true value $\sim\!28\%$, suppresses firehose reach, and (unlike the approval basis)
    *lowers* author extremity rather than raising it — no longer propping up the bait or the
-   ring's genuine-quality target beyond its merit. Still gated on `hierarchical_prior`, since
-   flipping the default would re-tune the $\mu$-calibrated sim suite.
+   ring's genuine-quality target beyond its merit. On the strength of that re-validation the
+   quality basis is now **on by default** (`hierarchical_prior`), the first of the §13.11
+   refinements to graduate — with one honest caveat: because the lift now flows through the
+   vouch channel, E9 leans on *that* channel's collusion defenses (§5 out-diversity / §13.10
+   loyalty), so a ring that could forge vouches would find a new lever (§13.11).
    The full reproducibility fix is the empirical means; an over-ranked or convex (Soft-Impute)
    completion for the *personalization* embedding is a noted, not-yet-shipped further step.
 10. **The camouflaged distributed ring — defended, with a residual** (§10, found *and fixed* in
@@ -891,7 +894,7 @@ specific sub-mechanism guarantees do not survive arbitrary combination. The trad
 
 | Refinement (knob) | What it buys | The trade-off it introduces |
 |---|---|---|
-| **Hierarchical prior** (E9, `hierarchical_prior`, §13#9) | $B_{\mathrm{LCB}}$ predicts-low on an *untested* one-sided firehose before the budget bites; +28\% delivered value in isolation | *Originally* on **approval history**, which also propped up a broadly-approved-but-shallow **bait**, a **ring target**, and partisan consistency — *raising* author extremity. **Resolved** by rebasing the lift onto the **quality (vouch) channel** (`hierarchical_prior_quality`, now default): approval can only *lower* the prior, and raising it requires earned vouches. In the simulator this keeps the firehose win while *lowering* extremity (Δ −0.02 vs the approval basis's +0.16) and no longer propping the bait/ring. Residual: it still shifts a few brittle sim thresholds (like any refinement), so it stays gated pending a default-flip re-validation — but it is no longer *goal-conflicting*. |
+| **Hierarchical prior** (E9, `hierarchical_prior`, §13#9) — **now on by default** | $B_{\mathrm{LCB}}$ predicts-low on an *untested* one-sided firehose before the budget bites; +28\% delivered value | *Originally* on **approval history**, which also propped up a broadly-approved-but-shallow **bait**, a **ring target**, and partisan consistency — *raising* author extremity. **Resolved** by rebasing the lift onto the **quality (vouch) channel** (`hierarchical_prior_quality`, default): approval can only *lower* the prior, and raising it requires earned vouches. This kept the firehose win while *lowering* extremity (Δ −0.02 vs the approval basis's +0.16) and no longer propping the bait/ring, so E9 **graduated to a default** after its own re-validation pass. New standing cost: the lift now depends on the **vouch channel's** collusion defenses — a ring able to forge vouches gains a lever E9 didn't expose before (so the ring simulator tests isolate E9, since the sim's puppets vouch *honestly* and would otherwise credit the target's real merit). |
 | **Residual-whiteness gate** (E4, `whiteness_gate`, §13#4) | Flags a post that divides along an unmodeled axis (Moran's I, permutation-tested) | Residuals correlate with the cluster structure, so as a *gate* it false-positives on most crowned posts in any clustered population. Excellent as a **diagnostic**, unsafe as a default gate. |
 | **ε-slice bias calibration** (E2, `bias_calibration`, §13.2) | De-confounds organic reception with a per-cluster bias model; beats IPW and **subsumes** the exploration-anchor cap | Redundant with (and superior to) the anchor cap — running both double-corrects. It also *shifts the M-frontier*: better de-confounding makes **pure bridging ($M{=}1$) deliver the most value**, moving the interior optimum — a benign shift, but one that invalidates the $M{\approx}0.7$-dominates result calibrated on the un-de-confounded system. |
 | **Amplification collar** (E3, `amplification_collar`, §13#3) | Throttles reach that outruns tested audience (staged rungs) | Interacts with the budget's own reach allocation; changes firehose/ring reach dynamics in combination. |
@@ -904,19 +907,20 @@ from different angles and therefore overlap or conflict** — E2 vs. the anchor 
 de-confound), E9's approval prior vs. the depth defense (since resolved by rebasing E9 onto the
 vouch channel), budget memory vs. the firehose dilution (cadence tolerance vs. flood
 suppression). The design space is *coupled*, not
-modular. Second, this is why they ship as **knobs, not defaults**: the tuned guarantees hold
+modular. Second, this is why the rest ship as **knobs, not defaults**: the tuned guarantees hold
 for the validated configuration, and enabling any refinement is a deliberate, per-deployment
 choice that requires its own re-validation — which is the honest posture for a mechanism whose
-interactions with the rest of the system are real. The one refinement closest to a safe default
-is E2 (a strict de-confounding improvement whose only cost is the benign M-frontier shift). E9
-*was* the one most in tension with the design's goals — until it was **rebased onto the quality
-channel** (above): moving the author lift from approval history to earned vouches turned its
-breakages (raised extremity, propped-up bait/ring) into merely marginal threshold shifts, the
-same class as E2. That rebase is the template for the general lesson: when two mechanisms
-conflict, the resolution is usually to route the weaker one through the *hardest-to-game signal*
-(here, the vouch channel) rather than to tune their weights. All of this came from the
-simulator's counterfactual, ground-truthed loop — which is exactly the tool Appendix C.4 exists
-to provide.
+interactions with the rest of the system are real. The exception, and the template, is **E9**:
+it *was* the one most in tension with the design's goals — until it was **rebased onto the
+quality channel** (above). Moving the author lift from approval history to earned vouches turned
+its breakages (raised extremity, propped-up bait/ring) into merely marginal shifts, and after
+its own re-validation pass E9 became the **first refinement promoted to a default**. That is the
+general lesson: when two mechanisms conflict, the resolution is usually to route the weaker one
+through the *hardest-to-game signal* (here, the vouch channel) rather than to tune their weights
+— though it re-prices the conflict rather than erasing it (E9 now depends on the vouch channel's
+own collusion defenses). E2 is the next-closest candidate (a strict de-confounding improvement
+whose only cost is a benign M-frontier shift). All of this came from the simulator's
+counterfactual, ground-truthed loop — which is exactly the tool Appendix C.4 exists to provide.
 
 ## 14. Relationship to prior work
 
