@@ -63,3 +63,28 @@ def test_scaling_the_ring_does_not_buy_reach_under_chord(reach):
         f"a bigger ring bought MORE reach under CHORD "
         f"({reach[('chord',15)]:.1f} -> {reach[('chord',45)]:.1f})"
     )
+
+
+def test_forged_vouches_buy_no_reach_under_the_quality_prior():
+    """§13.11 caveat, now tested in-loop. The E9-quality prior (default-on) lifts B_LCB by an
+    author's *earned vouches*, so a ring can try to forge them (`ring_forge_vouches`). It gains
+    nothing: a single-target ring's puppets have ~0 out-diversity λ, so their forged merit votes
+    are discounted, and a low-quality target's honest anti-vouches dilute what survives. The
+    vouch channel's own collusion defenses (§5/§13.10) carry the weight E9 now leans on."""
+    def target_reach(forge):
+        v = []
+        for s in SEEDS:                                         # default config → E9 on
+            cfg = ChordConfig(d=2, n_clusters=2, mf_iters=25, budget_B0=2.0, budget_max=6.0)
+            sim = Simulator(config=cfg, n_users=36, n_slots=6, seed=s, adaptive_authors=False,
+                            sybil_ring_size=30, ring_mode="distributed",
+                            ring_target_quality=0.2, ring_forge_vouches=forge)
+            v.append(sim.run("chord", n_windows=8).tail("ring_target_reach", 4))
+        return float(np.nanmean(v))
+
+    off, on = target_reach(False), target_reach(True)
+    print(f"\n[sim adv] forged vouches (E9 on, low-Q target): reach off={off:.1f} on={on:.1f}")
+    # a low-quality target earns NO E9 merit credit honestly (max(0, v̄)=0 under anti-vouches);
+    # if the forge worked it would flip that credit positive and buy reach. It does not.
+    assert on <= off + 2.0, (
+        f"forged vouches should buy no reach under E9-quality ({off:.1f} -> {on:.1f})"
+    )

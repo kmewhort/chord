@@ -75,7 +75,10 @@ graduate, after a default-flip re-validation. The five shifted sim tests were re
 re-tuned to weak Pareto dominance; anchor/bait/collusion/adversary isolate E9 (`hierarchical_prior=
 False`) as it confounds tests of *other* mechanisms. Standing caveat (§13.11): the lift now flows
 through the vouch channel, so E9 leans on that channel's out-diversity/loyalty defenses — the ring
-sim tests isolate E9 because the sim's puppets vouch *honestly*. The rest stay gated/opt-in.
+sim tests isolate E9 because the sim's puppets vouch *honestly*. That caveat is itself tested: a
+forged-vouch ring (`ring_forge_vouches`) buys the target no reach (single-target puppets' ~0
+out-diversity λ discount the forged votes) — `test_forged_vouches_buy_no_reach_under_the_quality_prior`.
+The rest stay gated/opt-in.
 | §3/App D | `chord/ports/` | `base` protocols + `adapters` (crude defaults only) |
 | App C.3 | `chord/eval/mnar_harness.py` | Semi-synthetic MNAR experiment |
 | App C.4 | `chord/simulator/` | `population`, `content`, `response` (non-circular DGP), `rankers` (CHORD vs engagement/oracle/…), `metrics` (welfare), `engine` (ranker-driven loop + sybil-ring adversary). See `SIMULATOR.md`. |

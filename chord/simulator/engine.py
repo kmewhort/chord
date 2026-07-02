@@ -112,6 +112,7 @@ class Simulator:
         ring_target_quality: float = 0.4,
         ring_mode: str = "naive",
         ring_camouflage: int = 4,
+        ring_forge_vouches: bool = False,
     ):
         # small per-author budget so the conserved-budget mechanism (§8) binds.
         self.config = config or ChordConfig(
@@ -130,6 +131,11 @@ class Simulator:
         self.ring_target_quality = ring_target_quality
         self.ring_mode = ring_mode              # "naive" | "distributed" (camouflaged)
         self.ring_camouflage = ring_camouflage  # camouflage reactions per sybil per window
+        # forge the merit channel too: puppets vouch +1 for the target regardless of its
+        # true quality (the attack the E9-quality rebase newly exposes, §13.11). Tests
+        # whether the vouch channel's own collusion defenses (λ out-diversity / loyalty)
+        # carry the weight E9 now leans on.
+        self.ring_forge_vouches = ring_forge_vouches
 
     # ---------------------------------------------------------------- world
     def _fresh_world(self):
@@ -303,6 +309,14 @@ class Simulator:
                                                   DEFAULT_REACTION_VALUES[ReactionKind.BOOST],
                                                   kind=ReactionKind.BOOST,
                                                   timestamp=float(w) + react_rng.random()))
+                        if self.ring_forge_vouches:
+                            # forged merit vote (§13.11): a +1 vouch regardless of the
+                            # target's true quality, reusing the same OUT_OF_BAND exposure.
+                            # timestamp=float(w) (no react_rng draw) so toggling the forge
+                            # never perturbs the approval-reaction trajectory.
+                            reactions.append(Reaction(spid, tp.id, 1.0,
+                                                      kind=ReactionKind.VOUCH,
+                                                      timestamp=float(w)))
 
             r.observe(reactions, post_map, exposures, w)
 

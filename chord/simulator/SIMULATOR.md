@@ -116,6 +116,16 @@ weaknesses; each was then chased down (tests in `tests/test_simulator_*`):
    phenomenon. The exploration-anchor's de-confounding was validated directly on Coat's
    real random-exposure block (it cuts the MNAR selection bias 35%). See
    `validate/test_{community_notes,polis}_collusion.py`, `validate/test_coat_anchor.py`.
+
+   *Forged-vouch attack — tested, contained.* The E9-quality prior (now default-on, §13.11)
+   lifts B_LCB by an author's *earned vouches*, which opens a new surface: let the ring forge
+   the merit channel too (`ring_forge_vouches` — puppets vouch +1 for the target regardless of
+   its true quality). It buys the target **no reach**: the puppets are single-target, so their
+   ~0 out-diversity λ discounts the forged votes, and a low-quality target's honest anti-vouches
+   dilute the rest — the vouch channel's own §5/§13.10 defenses carry the weight E9 leans on.
+   (`test_simulator_adversary.py::test_forged_vouches_buy_no_reach_under_the_quality_prior`.)
+   The *other* ring tests isolate E9, since the sim's puppets otherwise vouch **honestly** and
+   would credit a genuine-quality target's real merit — confounding the approval-defense measure.
 3. **Bridging↔satisfaction tradeoff — characterized** (see `test_simulator_frontier.py`).
 
 ## Layout

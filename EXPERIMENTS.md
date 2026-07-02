@@ -242,6 +242,17 @@ artifact of honest-vouching puppets, but it flags the standing cost: **E9-qualit
 vouch channel's own collusion defenses** (§5 out-diversity / §13.10 loyalty) — a ring able to
 forge vouches gains a lever. Documented in §4.2 + §13.11. Full suite green with E9 default-on.
 
+**Forged-vouch attack — tested, contained (landed).** Turned that caveat into a test. Added
+`ring_forge_vouches` to the simulator: puppets vouch +1 for the target regardless of its true
+quality (reusing the OUT_OF_BAND boost exposure; `timestamp=float(w)` so toggling never perturbs
+the approval trajectory — verified by a clean E9-off control, forge on==off, 66.4==66.4). Result
+(E9 on, distributed K=30, **low-quality target 0.2**): forging buys **no reach** (71.2 → 69.6).
+The single-target puppets carry ~0 out-diversity λ so their forged merit votes are discounted,
+and the low-quality target's honest anti-vouches keep max(0,v̄)=0. The vouch channel's own
+§5/§13.10 machinery already carries the weight E9 leans on — the rebase's new lever is closed by
+existing defenses. `test_simulator_adversary.py::test_forged_vouches_buy_no_reach_under_the_quality_prior`;
+§4.2/§13.11/SIMULATOR.md updated.
+
 ## Suggested order
 1. **E9** (hierarchical prior) — highest leverage, closes the one gap where §8 does §4's
    job; deterministic; CN + sim today.
