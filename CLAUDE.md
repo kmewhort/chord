@@ -50,7 +50,14 @@ pytest validate/ -rxX         # opt-in real-data validation (Appendix C); needs 
 | §7.2 | `chord/feed/assembly.py` | `greedy_assemble` (submodular, budget, floor) |
 | §8   | `chord/economy/budget.py`, `exploration.py` | `AuthorBudgetLedger`, `ExplorationPool` |
 | §9.1 | `chord/loop.py` | `Chord` — `fit_window` (learning) + `rank` (serving) |
-| §9.3 | `chord/monitor.py` | `N_eff`, `Gini`, `ConcentrationController`, endo/exo shift |
+| §9.3 | `chord/monitor.py` | `N_eff`, `Gini`, `ConcentrationController` (+CUSUM), endo/exo shift, `residual_whiteness`, `empirical_lipschitz`, `saturation_depth_prior` |
+
+Whitepaper-feedback experiments (`EXPERIMENTS.md`) landed as **gated** config flags, all
+default off, tested in `tests/test_tier2.py` + `test_hierarchical_prior.py` +
+`test_bias_calibration.py`: `hierarchical_prior` (E9), `bias_calibration` (E2),
+`whiteness_gate` (E4), `controller_cusum` (E12), `amplification_collar` (E3),
+`recycling_offpolicy_verify` (E6); E1/E11 are monitor utilities. Enabling any of these
+changes tuned sim results, so they stay off until a dedicated re-validation pass.
 | §3/App D | `chord/ports/` | `base` protocols + `adapters` (crude defaults only) |
 | App C.3 | `chord/eval/mnar_harness.py` | Semi-synthetic MNAR experiment |
 | App C.4 | `chord/simulator/` | `population`, `content`, `response` (non-circular DGP), `rankers` (CHORD vs engagement/oracle/…), `metrics` (welfare), `engine` (ranker-driven loop + sybil-ring adversary). See `SIMULATOR.md`. |

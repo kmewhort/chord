@@ -630,7 +630,12 @@ Honest residuals, several of which no fix fully removes:
 
 1. **Conditional convergence.** All guarantees assume *weak* performativity and, for the
    inner loop, a locally unique equilibrium the anchor only provides *locally*. Under strong
-   performative effects the system can oscillate; we monitor rather than prove.
+   performative effects the system can oscillate; we monitor rather than prove. The
+   "weak-performativity" assumption is now *measurable* rather than asserted (E1): the
+   empirical Lipschitz of the performative map — reaction-distribution shift per unit
+   ranking perturbation — is estimable from the exploration slice (`empirical_lipschitz`),
+   scales with the performativity rate in the simulator, and can be fed to the §9.3
+   controller to hold the sensitivity/curvature ratio below the Perdomo threshold.
 2. **Unobserved confounding in the propensity model** (§6) is the softest load-bearing
    wall — and the residual is *bias*, not variance. The variance failure (weights exploding
    as $\pi\to0$) is handled by SNIPW, doubly-robust estimation, the $1/\epsilon$ clip, and
@@ -655,16 +660,29 @@ Honest residuals, several of which no fix fully removes:
    this moves from "named, bounded" toward "calibrated where ε reaches, E-value-gated where it
    does not" — with residual bias only where the bias model itself fails to transport.
 3. **Bridging is non-monotone in audience.** $B_{\mathrm{LCB}}$ certifies bridging over the
-   *exposed* set; a post bridging at 10K may divide at 10M. The confidence must widen as the
-   target population outruns the tested set — this ties back to saturation windowing and
-   never fully closes.
+   *exposed* set; a post bridging at 10K may divide at 10M. Never fully closed, but now
+   structurally bounded by an **amplification collar** (E3, `amplification_collar`): a post's
+   realized strength — hence its budget and reach — is throttled when reach outruns its
+   tested audience, $E(p)>\kappa\,n_{\text{tested}}$, so amplification proceeds in rungs that
+   re-certify $B_{\mathrm{LCB}}$ on a larger tested set before each expansion. In a
+   rare-opposition test $B_{\mathrm{LCB}}$ falls monotonically as the tested audience grows,
+   so the collar halts a lucky small-sample post before it over-amplifies.
 4. **Low-dimensional opinion space** may under-represent true plurality; divisiveness along
-   an unmodeled axis leaks into $b_p$. $d$ is a real bias-variance knob (too small leaks
-   divisiveness into support; too large smears the divide you care about).
+   an unmodeled axis leaks into $b_p$. $d$ is a real bias-variance knob. This is now a
+   *testable null* rather than a silent failure (E4, `whiteness_gate`): crowning is gated on
+   a **residual-whiteness test** — Moran's I of a post's rank-$d$ residuals against the
+   co-reaction graph, permutation-tested. A post dividing along a hidden axis has
+   significantly autocorrelated residuals (flagged $p{<}0.01$) and is demoted; a genuine
+   bridge is white ($p{\approx}0.5$). Rising rejection rates are a principled "$d$ too low"
+   diagnostic.
 5. **Peer-prediction collusion** and the high-precision clique (§10) — a structural
    equilibrium problem, not a bug.
-6. **Recycling is mildly farmable** in principle (acting under-served), mitigated by
-   model-estimated satisfaction but not eliminated.
+6. **Recycling is mildly farmable** in principle (acting under-served) — now much less so
+   (E6, `recycling_offpolicy_verify`): the λ-boost is credited only when apparent
+   under-service is *corroborated off-policy* — the user realizes more value on ε-slice items
+   than on their personalized feed. A farmer who acts dissatisfied but does not actually
+   prefer the exploration content shows no gap and gets no boost; a genuinely under-served
+   user keeps it. The signal verifies itself against randomized ground truth.
 7. **Distinguishing harmful from benign divides** ($A$'s weighting) is a normative,
    instance-level choice with no purely technical answer.
 8. **Sybil rings — mostly closed, with a residual** (§5, validated in C.5). A naive
@@ -757,16 +775,25 @@ Honest residuals, several of which no fix fully removes:
     rather than read off ground truth. The residual is the same coordinated-clique of #5/#10 (a
     patient adversary who accrues honest vouch-weight then farms fake merit votes), for which a
     determinant-mutual-information (DMI) peer-prediction weight on the vouch channel — replacing
-    the correlate-with-the-crowd quality heuristic — is the noted next hardening.
+    the correlate-with-the-crowd quality heuristic — is the noted next hardening. A second,
+    independent depth channel further raises the forgery bar (E11, `saturation_depth_prior`):
+    the audition **saturation trajectory** — bait's reception variance collapses fast, slow-burn
+    depth decays ~5× slower — is a behavioral prior a forger would have to fake wholesale.
+    Three channels (vouches, saturation shape, and — where read behaviour is logged —
+    propensity-corrected dwell) make the attack require compromising independent modalities.
 12. **The §9.3 concentration controller is wired but dormant.** It now genuinely feeds its response
     back into the estimator (an earlier build computed a response the loop never read), and a
     forced tighten measurably flattens $\lambda$. But in every scenario tried, baseline
     concentration ($\mathrm{Gini}(\lambda)\approx0.06$) sits far below the ceiling that would
     trigger it — the teleport floor, out-diversity transmit weight, and recycling already bound
-    concentration well below where the controller engages. So it is a correctly-wired safety net
-    that, at present operating points, never fires; whether the ceiling should track a multiple of
-    the observed baseline (making it an *active* regulator) or it is genuine belt-and-suspenders is
-    an open tuning question, not a correctness one.
+    concentration well below where the controller engages. The dormancy is addressed by
+    reframing the trigger as a **change-point alarm** rather than a fixed level (E12,
+    `controller_cusum`): a CUSUM on $\mathrm{Gini}(\lambda)$ drift against a slow rolling
+    baseline, with the ceiling *data-derived* ($h\sigma$ of the baseline). It fires on a
+    concentration attack (Gini $0.08\to0.24$) that never approaches the $0.6$ level ceiling —
+    active where the level guard is dormant — while staying silent on healthy noise. (It
+    detects a *shift*, so a system that begins concentrated shows no drift to catch — which is
+    change-point detection working as intended; the realistic attack transitions from healthy.)
 
 *Directions considered and declined.* Several defensive add-ons were evaluated and left out
 deliberately, on the principle that each addition should strengthen an existing mechanism or

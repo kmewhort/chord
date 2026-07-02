@@ -139,10 +139,12 @@ standalone reach-killer. On CN there is no exposure log, so the throttle-to-ε c
 sim-only. (Sharp caveat, per the meta-point: the throttle *spends* ε — the puppets must wait
 for the commons pool to serve them the target.)
 
-## Results — Tier 2 (run)
+## Results — Tier 2 (run → **all six LANDED**, gated, `tests/test_tier2.py`)
 
-All six ran as focused experiments; every one is directionally positive. None landed into
-the core yet (they need DGP/monitor plumbing), but each is now a demonstrated mechanism.
+All six ran positive and are now landed as gated core features (default off, suite green):
+E4 `whiteness_gate`, E12 `controller_cusum`, E3 `amplification_collar`, E6
+`recycling_offpolicy_verify` (loop config flags); E1 `monitor.empirical_lipschitz` and E11
+`monitor.saturation_depth_prior` (measurement utilities).
 
 - **E12 — CUSUM controller: ✅.** A concentration attack lifts Gini(λ) to a sustained ~0.24
   (healthy ~0.08); *neither* trips the level ceiling (0.6) — the §13#12 dormancy, confirmed.
