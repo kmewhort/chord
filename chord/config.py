@@ -178,6 +178,20 @@ class ChordConfig:
     gini_ceiling: float = 0.6  # if Gini(lambda) exceeds -> tighten
     controller_delta_step: float = 0.02  # raise teleport floor
     controller_epsilon_step: float = 0.01  # raise epsilon_min
+    # E12 (§9.3): a CUSUM change-point alarm on Gini(λ) drift vs a slow rolling baseline,
+    # in addition to the fixed level ceiling. The ceiling is data-derived (h·σ of the
+    # baseline), so the guard is *active* against a concentration attack instead of dormant
+    # far below 0.6. Off = level ceiling only.
+    controller_cusum: bool = False
+    controller_cusum_k: float = 0.5      # slack (in baseline σ) before drift accumulates
+    controller_cusum_h: float = 5.0      # alarm threshold (in baseline σ)
+    controller_cusum_warmup: int = 5     # windows to establish the baseline
+    # E4 (§4/§13#4): gate crowning on a residual-whiteness test — a post whose rank-d
+    # residuals are spatially autocorrelated with the co-reaction graph (Moran's I,
+    # permutation p<α) is dividing along an *unmodeled* axis, so demote it. Off = no gate.
+    whiteness_gate: bool = False
+    whiteness_alpha: float = 0.05
+    whiteness_penalty: float = 0.5
 
     def validate(self) -> None:
         if self.d < 1:

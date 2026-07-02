@@ -62,7 +62,7 @@ from .propensity import (
 )
 from .economy import AuthorBudgetLedger, ExplorationPool
 from .feed import Candidate, FactorContext, blended_value, greedy_assemble
-from .monitor import ConcentrationController
+from .monitor import ConcentrationController, coreaction_adjacency, residual_whiteness
 from .model.spectral import spectral_partition
 
 
@@ -81,6 +81,7 @@ class WindowState:
     realized_strength: Dict[Id, float]
     n_iter_inner: int = 0
     depth: Dict[Id, float] = field(default_factory=dict)  # estimated q_p (§10), earned
+    residual_whiteness: Dict[Id, tuple] = field(default_factory=dict)  # E4: {pid:(I,p)}
 
 
 class Chord:
@@ -236,6 +237,21 @@ class Chord:
             self.author_reception.update(reception, post_authors)
         scorer = BridgingScorer(cfg)
         bridging = scorer.score(result, clusters, post_authors, reception, reception_caps, priors)
+
+        # E4 (§4/§13#4): residual-whiteness crowning gate. For crowning candidates
+        # (positive bridged support), test whether the rank-d residuals are spatially
+        # autocorrelated with the co-reaction graph (a divide along an unmodeled axis);
+        # demote the flagged ones. Diagnostic is always exposed when the gate is on.
+        whiteness: Dict[Id, tuple] = {}
+        if cfg.whiteness_gate:
+            W = coreaction_adjacency(reactions, users)
+            cands = [pid for pid, v in bridging.b_lcb.items()
+                     if np.isfinite(v) and v > 0.0]
+            whiteness = residual_whiteness(result, reactions, post_authors, users, W,
+                                           cands, seed=self.seed)
+            for pid, (I, p) in whiteness.items():
+                if p < cfg.whiteness_alpha and I > 0.0:   # significantly non-white residuals
+                    bridging.b_lcb[pid] = bridging.b_lcb[pid] - cfg.whiteness_penalty
         # collusion defense (§5/§10): discount posts whose approvers are coordinated,
         # which a distributed cross-cluster ring cannot avoid (min-over-clusters can).
         if cfg.coordination_penalty > 0.0:
@@ -296,6 +312,7 @@ class Chord:
             realized_strength=realized_strength,
             n_iter_inner=n_inner,
             depth=depth,
+            residual_whiteness=whiteness,
         )
         return self.state
 
