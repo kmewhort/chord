@@ -7,7 +7,12 @@ import numpy as np
 
 from chord.config import ChordConfig
 from chord.loop import Chord
-from chord.monitor import ConcentrationController, gini
+from chord.monitor import (
+    ConcentrationController,
+    empirical_lipschitz,
+    gini,
+    saturation_depth_prior,
+)
 from chord.types import Exposure, ExposureSource, Post, Reaction
 
 
@@ -167,3 +172,28 @@ def test_e6_offpolicy_verify_denies_the_recycling_farmer():
     # with verification the farmer's boost is withdrawn, the genuine user's kept
     assert on["F"] < off["F"], "off-policy verify should withdraw the farmer's recycling boost"
     assert on["G"] >= off["G"] * 0.95, "the genuine under-served user should keep their boost"
+
+
+# ---- E1: measured performativity (empirical Lipschitz) ----
+
+def test_e1_empirical_lipschitz_recovers_known_sensitivity():
+    rng = np.random.default_rng(0)
+    x = np.cumsum(rng.normal(0, 1, 40))                    # input (ranking-change proxy)
+    y = 2.0 * x + rng.normal(0, 1e-3, 40)                  # output = 2·input (Lipschitz 2)
+    assert abs(empirical_lipschitz(y, x) - 2.0) < 0.1
+    # a flatter map has a smaller Lipschitz — the signal the controller would hold down
+    y2 = 0.4 * x + rng.normal(0, 1e-3, 40)
+    assert empirical_lipschitz(y2, x) < empirical_lipschitz(y, x)
+
+
+# ---- E11: saturation-trajectory depth prior ----
+
+def test_e11_saturation_trajectory_separates_bait_from_depth():
+    rng = np.random.default_rng(0)
+    def traj(halflife):
+        return [np.exp(-t / halflife) + rng.normal(0, 0.02) for t in range(12)]
+    bait = saturation_depth_prior(traj(1.5))              # fast saturation
+    depth = saturation_depth_prior(traj(7.0))             # slow burn
+    print(f"\n[E11] depth prior: bait={bait:.3f}  depth={depth:.3f}")
+    assert depth > bait + 0.3, "slow-burn depth should earn a higher prior than fast-saturating bait"
+    assert 0.0 <= bait <= 1.0 and 0.0 <= depth <= 1.0

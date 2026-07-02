@@ -151,6 +151,40 @@ class ConcentrationController:
         return False
 
 
+def empirical_lipschitz(output_series: Sequence[float],
+                        input_series: Sequence[float]) -> float:
+    """Empirical Lipschitz constant of a distribution/response map (E1, §9.2).
+
+    Given paired input (ranking-change proxy, e.g. feed churn) and output (reaction-
+    distribution shift) series, estimate |Δoutput|/|Δinput| — the sensitivity of the
+    performative map. Fed to the §9.3 controller, it lets performativity be *measured*
+    (and the sensitivity/curvature ratio held below the Perdomo threshold) rather than
+    assumed. Uses the median ratio to resist outliers."""
+    o = np.asarray(output_series, dtype=float)
+    i = np.asarray(input_series, dtype=float)
+    if len(o) < 2 or len(i) < 2:
+        return 0.0
+    do = np.abs(np.diff(o))
+    di = np.abs(np.diff(i))
+    mask = di > 1e-9
+    return float(np.median(do[mask] / di[mask])) if mask.any() else 0.0
+
+
+def saturation_depth_prior(variance_series: Sequence[float], scale: float = 3.0) -> float:
+    """Depth prior ∈ [0,1] from a post's audition reception-variance trajectory (E11, §10).
+
+    Bait saturates fast (rapid consensus on shallow appeal → variance collapses); slow-burn
+    depth sustains discovery (variance decays slowly). Fit the log-linear decay rate; a fast
+    decay → low depth, a slow decay → high depth. An independent, hard-to-forge complement to
+    the vouch channel (§13#11) — a forger would have to fake a whole discovery trajectory."""
+    v = np.clip(np.asarray(variance_series, dtype=float), 1e-3, None)
+    if len(v) < 3:
+        return 0.5
+    t = np.arange(len(v))
+    rate = float(-np.polyfit(t, np.log(v), 1)[0])       # high = fast saturation = bait
+    return float(np.exp(-max(rate, 0.0) * scale))       # slow decay → depth near 1
+
+
 def coreaction_adjacency(reactions, users: Sequence[Id]) -> np.ndarray:
     """User×user co-reaction similarity (E4): positive cosine of mean-centred reaction
     vectors. Captures the *full* opinion structure — including axes beyond the fitted
