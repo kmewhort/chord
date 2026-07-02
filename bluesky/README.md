@@ -93,3 +93,48 @@ firehose consumer, and feed-record publishing. Offline-tested end to end.
 
 These are deliberate boundaries, each a clean extension point — the ranking core and
 its guarantees are the finished part; this package is the honest, runnable adapter.
+
+## Next steps
+
+### Implement a `VouchSource` (the merit channel — the highest-value gap)
+
+The vouch channel (§10) is what lets the (default-on) quality-based E9 prior *promote*
+demonstrated merit and lets depth *gate* bridging-bait — with the default `NoVouchSource`
+CHORD only ever demotes on it, never earns. A real `VouchSource` closes that. The contract
+is one method:
+
+```python
+class VouchSource(Protocol):
+    def vouches(self, posts: Sequence[Post]) -> Sequence[Reaction]: ...   # kind=VOUCH, ±1
+```
+
+and it wires in at construction: `ChordFeed(config, vouch_source=MyVouchSource())`.
+
+**Recommended: a custom `app.chord.vouch` lexicon record.** Define a small ATProto record
+type — a merit vote on a post (`{subject: {uri, cid}, value: +1|-1, createdAt}`) — and let a
+companion client (or a button in an existing one) write it to the voter's own repo. Then:
+
+1. add `app.chord.vouch` to `BlueskyConfig.wanted_collections` so Jetstream delivers it;
+2. add an `event_to_vouch(event)` mapper (mirror `event_to_reaction`, emitting
+   `ReactionKind.VOUCH`) and route it via `ChordFeed.ingest`/`store.add_vouch`;
+3. that's it — the vouch flows through the *same* λ-weighting, out-diversity, and loyalty
+   machinery as the approval channel, which is exactly what the forged-vouch adversary test
+   (`tests/test_simulator_adversary.py::test_forged_vouches_buy_no_reach_under_the_quality_prior`)
+   showed already contains a ring that fakes merit votes. The vouch is a *record in the
+   voter's repo*, so it inherits the DID's Sybil cost — a fresh puppet's vouch counts ≈0.
+
+The record lives in the voter's own repo (portable, revocable, not owned by the feed), which
+is the ATProto-native way to keep merit an *earned, other-attested* quantity (§12 wall) rather
+than an author-set feature a baiter could forge.
+
+**Alternatives** the same slot accepts, in decreasing forge-resistance:
+- a **trusted labeler** (an `app.bsky.labeler`) whose "substantive" labels map to vouches;
+- a **model score** (e.g. an LLM rating of depth/effort) as a soft, lower-trust vouch — cheap
+  to run but game-able, so weight it well below human/record vouches.
+
+### Smaller follow-ons
+- **Verify the service-auth JWT** against the issuer's signing key (resolve their DID doc)
+  before trusting the `iss` DID for per-user personalization.
+- **Persist the store** — a DB-backed `RollingStore` (SQLite/Postgres) so windows and the
+  E9/budget history survive restarts.
+- **Cursor pagination** in `getFeedSkeleton` for deep scroll.
