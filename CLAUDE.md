@@ -59,8 +59,14 @@ default off, tested in `tests/test_tier2.py` + `test_hierarchical_prior.py` +
 `recycling_offpolicy_verify` (E6); E1/E11 are monitor utilities; `RandomizationPortfolio`
 (E-meta) is the ε-budget allocator. Budget-recursion refinements (§8, Fable review):
 `budget_memory` (γ carry, #1), `budget_share_based`+`budget_aggregate_factor` (system-wide
-issuance, #4), `AuthorBudgetLedger.replicator_gain` (bifurcation diagnostic, #2). Enabling
-any of these changes tuned sim results, so they stay off until a dedicated re-validation pass.
+issuance, #4), `AuthorBudgetLedger.replicator_gain` (bifurcation diagnostic, #2), `budget_streaming_credit`
+(#3 leaky-bucket credit). **These stay OFF by default — and a re-validation pass established
+they do not compose cleanly as a monolithic default** (EXPERIMENTS.md "Re-validation finding"):
+turning them all on undermines validated sub-claims via interaction — E9's approval-history
+prior props up high-approval bait/ring targets and *raises* extremity, E4 false-positives as a
+gate on clustered data, E2 subsumes the anchor cap, budget_memory lets a firehose accumulate
+budget. They are individually valid but opt-in; enabling any is a per-deployment choice needing
+its own re-validation.
 | §3/App D | `chord/ports/` | `base` protocols + `adapters` (crude defaults only) |
 | App C.3 | `chord/eval/mnar_harness.py` | Semi-synthetic MNAR experiment |
 | App C.4 | `chord/simulator/` | `population`, `content`, `response` (non-circular DGP), `rankers` (CHORD vs engagement/oracle/…), `metrics` (welfare), `engine` (ranker-driven loop + sybil-ring adversary). See `SIMULATOR.md`. |

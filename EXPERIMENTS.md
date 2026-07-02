@@ -176,6 +176,35 @@ E4 `whiteness_gate`, E12 `controller_cusum`, E3 `amplification_collar`, E6
   orthogonal to the vouch channel — a third channel toward "forge requires compromising
   independent modalities."
 
+## Re-validation finding — the refinements do NOT compose cleanly as defaults
+
+Attempted to graduate the whole gated set (E9, E2, E4, E12, E3, E6 + budget memory/share/
+streaming) to defaults and re-validate. The **headline claims survive** (welfare 8/8,
+robustness, validate/ all green) — but turning them all on at once undermines several
+validated *sub*-claims through mechanism interactions. Each was isolated:
+
+- **E9 (hierarchical prior) is double-edged.** Its prior is on *approval* history, so while
+  it suppresses a low-approval firehose (its intended win), it **props up high-approval bad
+  actors** — a broadly-approved shallow bait and a distributed-ring target — blunting the
+  depth defense (bait reach ×0.61 → ×1.12) and weakening ring containment. Worse, it rewards
+  partisan consistency (in-cluster approval), *increasing* author extremity above engagement
+  (Δ+0.156 vs +0.041) — hitting the core "CHORD doesn't breed extremists" claim.
+- **E4 (residual whiteness) false-positives as a default gate.** Residuals correlate with the
+  cluster structure, so it flags ~all crowned posts (p<0.01) in any clustered population — a
+  fine *diagnostic*, an unsafe default *gate*.
+- **E2 (bias calibration) subsumes the exploration-anchor cap** — both de-confound the ε-slice,
+  and with both on they double-correct and *reduce* delivered value (E2 is the better one).
+- **budget_memory (cadence carry) lets a firehose accumulate budget**, reversing the budget's
+  firehose dilution (a persistent firehose earns a little each window and carries it).
+- **budget_share_based dilutes** the depth/welfare gains and risks the ηΦ̄ bifurcation with memory.
+
+**Conclusion:** the refinements are individually validated and valuable, but they belong as
+**opt-in, not monolithic defaults** — the tuned guarantees (extremity incentive, ring-below-
+parity, bait/firehose demotion) depend on them being off or *carefully* combined. Composition
+is not free: several refinements interact with the very defenses they sit beside. So the shipped
+defaults keep them off; enabling any is a deliberate, per-deployment choice with its own
+re-validation. (Budget #3 streaming credit landed gated alongside #1/#2/#4; §8 documents all four.)
+
 ## Suggested order
 1. **E9** (hierarchical prior) — highest leverage, closes the one gap where §8 does §4's
    job; deterministic; CN + sim today.
