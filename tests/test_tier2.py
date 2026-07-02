@@ -104,3 +104,66 @@ def test_e4_gate_off_by_default_computes_nothing():
     posts, rx, exps = _hidden_axis_world()
     st = Chord(ChordConfig(d=1, n_clusters=2, mf_iters=40), seed=0).fit_window(rx, posts, exps)
     assert st.residual_whiteness == {}
+
+
+# ---- E3: amplification collar ----
+
+def test_e3_collar_throttles_reach_beyond_tested_audience():
+    # OVER-reached post: 40 exposures, only 3 reactions (tested) -> reach >> κ·tested.
+    # WELL-tested post: 12 exposures, 12 reactions -> reach <= κ·tested.
+    rng = np.random.default_rng(0)
+    posts = {"OVER": Post("OVER", "ao"), "WELL": Post("WELL", "aw"), "F": Post("F", "af")}
+    rx, exps = [], []
+    for u in range(20):                                   # cluster structure via a partisan post
+        rx.append(Reaction(f"u{u}", "F", 1.0 if u < 10 else -1.0))
+        exps.append(Exposure(f"u{u}", "F", source=ExposureSource.ORGANIC, propensity=0.5))
+    for u in range(40):                                   # OVER: 40 exposures
+        exps.append(Exposure(f"v{u}", "OVER", source=ExposureSource.ORGANIC, propensity=0.5))
+    for u in range(3):                                    # ...but only 3 tested it
+        rx.append(Reaction(f"v{u}", "OVER", 0.8))
+    for u in range(12):                                   # WELL: 12 exposures, all 12 tested
+        rx.append(Reaction(f"w{u}", "WELL", 0.8))
+        exps.append(Exposure(f"w{u}", "WELL", source=ExposureSource.ORGANIC, propensity=0.5))
+    cfg = ChordConfig(d=2, n_clusters=2, mf_iters=30, amplification_collar=True, collar_kappa=4.0)
+    st = Chord(cfg, seed=0).fit_window(rx, posts, exps)
+    print(f"\n[E3] collar: OVER={st.collar.get('OVER'):.2f}  WELL={st.collar.get('WELL'):.2f}")
+    assert st.collar["OVER"] < 0.5, "over-reached post should be throttled"
+    assert st.collar["WELL"] == 1.0, "well-tested post should not be throttled"
+
+
+# ---- E6: off-policy recycling verification ----
+
+def test_e6_offpolicy_verify_denies_the_recycling_farmer():
+    # genuine under-served user prefers ε content; farmer acts dissatisfied but doesn't.
+    rng = np.random.default_rng(0)
+    posts = {f"p{j}": Post(f"p{j}", f"a{j%3}") for j in range(10)}
+    rx, exps = [], []
+    # background raters for structure
+    for u in range(16):
+        for j in range(10):
+            v = 0.6 if (j % 2 == 0) == (u < 8) else -0.6
+            rx.append(Reaction(f"u{u}", f"p{j}", v))
+            exps.append(Exposure(f"u{u}", f"p{j}", source=ExposureSource.ORGANIC, propensity=0.5))
+    # genuine under-served G: low value on organic feed, HIGH on ε items
+    for j in range(4):
+        rx.append(Reaction("G", f"p{j}", -0.5))
+        exps.append(Exposure("G", f"p{j}", source=ExposureSource.ORGANIC, propensity=0.5))
+    for j in range(4, 8):
+        rx.append(Reaction("G", f"p{j}", 0.8))
+        exps.append(Exposure("G", f"p{j}", source=ExposureSource.EXPLORATION, propensity=0.1))
+    # farmer F: low value on organic (acts dissatisfied), also low on ε (no real preference)
+    for j in range(4):
+        rx.append(Reaction("F", f"p{j}", -0.5))
+        exps.append(Exposure("F", f"p{j}", source=ExposureSource.ORGANIC, propensity=0.5))
+    for j in range(4, 8):
+        rx.append(Reaction("F", f"p{j}", -0.5))
+        exps.append(Exposure("F", f"p{j}", source=ExposureSource.EXPLORATION, propensity=0.1))
+
+    def lam_eff(verify):
+        cfg = ChordConfig(d=2, n_clusters=2, mf_iters=30, recycling_offpolicy_verify=verify)
+        return Chord(cfg, seed=0).fit_window(rx, posts, exps).rater_lambda_eff
+    off, on = lam_eff(False), lam_eff(True)
+    print(f"\n[E6] farmer λ_eff off={off['F']:.4f} on={on['F']:.4f}; genuine off={off['G']:.4f} on={on['G']:.4f}")
+    # with verification the farmer's boost is withdrawn, the genuine user's kept
+    assert on["F"] < off["F"], "off-policy verify should withdraw the farmer's recycling boost"
+    assert on["G"] >= off["G"] * 0.95, "the genuine under-served user should keep their boost"

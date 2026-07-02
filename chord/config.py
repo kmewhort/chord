@@ -192,6 +192,16 @@ class ChordConfig:
     whiteness_gate: bool = False
     whiteness_alpha: float = 0.05
     whiteness_penalty: float = 0.5
+    # E3 (§13#3): amplification collar — throttle a post's realized strength (hence its
+    # budget/reach) when its reach outruns its *tested* audience, E(p) > κ·n_tested, so
+    # amplification proceeds in rungs that re-certify B_LCB before each expansion. Off = no cap.
+    amplification_collar: bool = False
+    collar_kappa: float = 4.0
+    # E6 (§8): only boost recycling λ for apparent under-service that is *corroborated
+    # off-policy* — the user realizes value on ε-slice items the ranker wouldn't have shown.
+    # A farmer acting dissatisfied but not preferring ε content gets no boost. Off = model
+    # dissatisfaction only.
+    recycling_offpolicy_verify: bool = False
 
     def validate(self) -> None:
         if self.d < 1:

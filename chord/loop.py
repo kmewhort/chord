@@ -82,6 +82,7 @@ class WindowState:
     n_iter_inner: int = 0
     depth: Dict[Id, float] = field(default_factory=dict)  # estimated q_p (§10), earned
     residual_whiteness: Dict[Id, tuple] = field(default_factory=dict)  # E4: {pid:(I,p)}
+    collar: Dict[Id, float] = field(default_factory=dict)  # E3: per-post reach throttle
 
 
 class Chord:
@@ -284,6 +285,19 @@ class Chord:
         exposure_per_post: Dict[Id, float] = defaultdict(float)
         for e in exposures:
             exposure_per_post[e.post_id] += 1.0
+        # E3 (§13#3): amplification collar — throttle strength (→ budget → reach) when a
+        # post's reach outruns its tested audience E(p) > κ·n_tested, so it must re-certify
+        # B_LCB on a larger tested set before the next expansion rung.
+        collar: Dict[Id, float] = {}
+        if cfg.amplification_collar:
+            n_tested: Dict[Id, float] = defaultdict(float)
+            for r in reactions:
+                n_tested[r.post_id] += 1.0
+            for pid in list(realized_strength):
+                reach = exposure_per_post.get(pid, 0.0)
+                cap = cfg.collar_kappa * n_tested.get(pid, 0.0)
+                collar[pid] = 1.0 if reach <= cap or reach <= 0 else max(cap, 0.0) / reach
+                realized_strength[pid] *= collar[pid]
         post_identity = {
             pid: (identity_of.get(a, a) if identity_of else a)
             for pid, a in post_authors.items()
@@ -295,6 +309,24 @@ class Chord:
 
         # --- step 7: influence recycling -> lambda_eff
         satisfaction = self._realized_satisfaction(reactions, result, divis)
+        if cfg.recycling_offpolicy_verify:
+            # E6 (§8): only credit under-service that is corroborated off-policy — the user
+            # realizes MORE value on ε-slice items than on their personalized feed. A farmer
+            # who acts dissatisfied but does not prefer ε content shows no gap → no boost.
+            org_rx = [r for r in reactions
+                      if (exposure_index.get((r.user_id, r.post_id)) is None
+                          or exposure_index[(r.user_id, r.post_id)].source
+                          is not ExposureSource.EXPLORATION)]
+            eps_rx = [r for r in reactions
+                      if (exposure_index.get((r.user_id, r.post_id)) is not None
+                          and exposure_index[(r.user_id, r.post_id)].source
+                          is ExposureSource.EXPLORATION)]
+            s_org = self._realized_satisfaction(org_rx, result, divis)
+            s_eps = self._realized_satisfaction(eps_rx, result, divis)
+            s_bar = float(np.mean(list(s_org.values()))) if s_org else 0.0
+            satisfaction = {
+                u: s_bar - max(0.0, s_eps.get(u, s_bar) - s_org.get(u, s_bar))
+                for u in s_org}
         rater_lambda_eff = apply_recycling(rater_lambda, satisfaction, cfg)
 
         # --- stability controller (§9.3): tighten if concentration climbs
@@ -313,6 +345,7 @@ class Chord:
             n_iter_inner=n_inner,
             depth=depth,
             residual_whiteness=whiteness,
+            collar=collar,
         )
         return self.state
 
