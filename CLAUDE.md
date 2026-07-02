@@ -56,8 +56,11 @@ Whitepaper-feedback experiments (`EXPERIMENTS.md`) landed as **gated** config fl
 default off, tested in `tests/test_tier2.py` + `test_hierarchical_prior.py` +
 `test_bias_calibration.py`: `hierarchical_prior` (E9), `bias_calibration` (E2),
 `whiteness_gate` (E4), `controller_cusum` (E12), `amplification_collar` (E3),
-`recycling_offpolicy_verify` (E6); E1/E11 are monitor utilities. Enabling any of these
-changes tuned sim results, so they stay off until a dedicated re-validation pass.
+`recycling_offpolicy_verify` (E6); E1/E11 are monitor utilities; `RandomizationPortfolio`
+(E-meta) is the ε-budget allocator. Budget-recursion refinements (§8, Fable review):
+`budget_memory` (γ carry, #1), `budget_share_based`+`budget_aggregate_factor` (system-wide
+issuance, #4), `AuthorBudgetLedger.replicator_gain` (bifurcation diagnostic, #2). Enabling
+any of these changes tuned sim results, so they stay off until a dedicated re-validation pass.
 | §3/App D | `chord/ports/` | `base` protocols + `adapters` (crude defaults only) |
 | App C.3 | `chord/eval/mnar_harness.py` | Semi-synthetic MNAR experiment |
 | App C.4 | `chord/simulator/` | `population`, `content`, `response` (non-circular DGP), `rankers` (CHORD vs engagement/oracle/…), `metrics` (welfare), `engine` (ranker-driven loop + sybil-ring adversary). See `SIMULATOR.md`. |

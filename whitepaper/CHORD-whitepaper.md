@@ -461,7 +461,7 @@ capped and replenished by realized strength:
 $$
 \sum_{p:\,a(p)=a,\,p\in W} E(p) \le B(a),
 \qquad
-B_{t+1}(a) = \mathrm{clip}\!\Big(B_0 + \eta\!\!\sum_{p:\,a(p)=a,\,p\in W_t}\!\! [\Phi(p)]_+\,E(p),\ \ 0,\ B_{\max}\Big)
+B_{t+1}(a) = \mathrm{clip}\!\Big(B_0 + \gamma\,(B_t(a)-B_0) + \eta\!\!\sum_{p:\,a(p)=a,\,p\in W_t}\!\! [\Phi(p)]_+\,E(p),\ \ 0,\ B_{\max}\Big)
 $$
 
 Two guards keep the replenishment well-behaved: the rectifier $[\Phi(p)]_+$ makes a
@@ -472,6 +472,38 @@ relies on. Firehose posting spreads a fixed budget thin; quality regenerates it.
 engagement logic (where each post is an independent virality lottery ticket, so volume is
 rational) into one where posting more *dilutes you* unless it earns. The budget binds to
 the **identity** port, not the raw account, so it cannot be sharded across sockpuppets.
+
+Formally this is a **floored, capped replicator equation**: reach reproduces in proportion
+to earned cross-cluster fitness, bounded below by the commons floor $B_0$ and above by
+$B_{\max}$. It *enforces* an amortized fairness constraint of the Biega et al. (2018)
+"equity of attention" kind — cumulative exposure tracking cumulative merit — but with the
+merit being *tested bridging strength* and the refill *endogenous* to it, which is the
+novel combination. Reading it as a replicator equation also surfaces four properties of its
+time-dependence that the naive form gets wrong (each a gated refinement, off by default):
+
+- **Memory ($\gamma$, #1).** The $\gamma\,(B_t-B_0)$ carry term is the author-side
+  anti-ossification half-life mirroring rater recycling. With $\gamma=0$ (the original rule)
+  a single quiet window resets any author to the floor, conflating "posted nothing this
+  week" with "earned nothing" — the wrong forgetting schedule for irregular-cadence
+  hobbyists. $\gamma>0$ carries earned standing across gaps.
+- **Bifurcation at $\gamma+\eta\bar\Phi=1$ (#2).** For a fully-spending author, earnings
+  $\approx\bar\Phi\,B_t$, so the recursion is linear with gain $\gamma+\eta\bar\Phi$ and
+  fixed point $B^\*=B_0(1-\gamma)/(1-\gamma-\eta\bar\Phi)$ — graded below the critical
+  strength, runaway to $B_{\max}$ above it. So $\eta$ is a **phase-transition parameter**,
+  not a smooth gain; set it to keep the gain (a shipped diagnostic) comfortably below $1$.
+- **Streaming credit (#3, direction).** $\Phi(p)$ is not known at window close for
+  slow-burn content — auditions close on *evaluation saturation*, not wall-clock. Batching
+  credit at window boundaries therefore either credits noisy provisional $\Phi$ or lags by
+  the saturation time, disadvantaging exactly the long-form the depth mechanism protects.
+  The clean form is **incremental (leaky-bucket) credit** as the Thompson posterior on
+  $\Phi(p)$ tightens — credit flowing at the rate evidence arrives, which also removes
+  window-boundary gaming. Noted as the intended refinement; the batch rule ships today.
+- **System-wide conservation (#4).** Per-author issuance $\eta\sum[\Phi]_+E$ is
+  *procyclical*: a high-engagement window (breaking news lifts everyone's $\Phi$) inflates
+  total issuance, and once aggregate budget exceeds slot supply the constraint silently
+  stops binding. The share-based option issues a **fixed aggregate pool** per window,
+  distributed by *relative* realized strength — monetary policy for attention rather than a
+  fixed money-printing rate — so "conserved" holds system-wide, not just per author.
 
 **Exploration pool (cold-start, base-rate-calibrated).** New posts have no $b_p$. Audition
 them via Thompson sampling — but **not** with a flat optimistic prior, which
@@ -528,6 +560,16 @@ Two coupled instabilities, each with a governing theory:
   safety target: keep the sensitivity of the reaction distribution to a re-rank small
   relative to loss curvature — mechanically bought by the exploration anchor and by slow
   knob changes. The λ-memory case is the *stateful* variant [Brown, Hod & Kalemaj].
+
+There is in fact a **third timescale**: the author-budget recursion (§8). Its refill rate
+$\eta$ is itself a **performativity gain** — a larger $\eta$ makes the visibility an author
+receives, and hence the data distribution, more sensitive to the ranker's own allocations,
+pushing *against* the Perdomo condition. So the budget update belongs on the slow timescale
+with $\lambda$ (budgets should change no faster than the actor), and $\eta$ (together with
+the memory $\gamma$, since the replicator gain is $\gamma+\eta\bar\Phi$) belongs *inside*
+the measured performativity ratio of §9.3, not tuned independently of it. The exploration
+anchor helps here too: randomized exposure is allocation the author did not earn, which
+directly damps the budget→data feedback.
 
 ### 9.3 Stability as a monitored runtime property
 
