@@ -165,8 +165,17 @@ class BridgingScorer:
         rec = reception or {}
         n_cp = np.array([float(rec.get(c, (0.0, prior_c[c]))[0]) for c in range(K)])
         r_emp = np.array([float(rec.get(c, (0.0, prior_c[c]))[1]) for c in range(K)])
-        w = n_cp / (n_cp + cfg.bridging_shrinkage_n0)   # empirical-Bayes trust per cluster
-        r_shrunk = prior_c + w * (r_emp - prior_c)
+        if cfg.bridging_subtractive_lcb:
+            # Legacy lower-confidence bound: r̂_c − β·σ/√(n_c+1). An *unsampled* cluster
+            # (n_c=0) takes the full penalty β·σ and is pushed *below* the prior, so a
+            # one-signed (like-only) partisan post — well-liked in one cluster, silent in
+            # the other — is demoted below a post tested across clusters. (The EB path
+            # below would instead shrink the silent cluster UP to the high grand mean.)
+            penalty = cfg.lcb_beta * cfg.lcb_sigma / np.sqrt(n_cp + 1.0)
+            r_shrunk = r_emp - penalty
+        else:
+            w = n_cp / (n_cp + cfg.bridging_shrinkage_n0)   # empirical-Bayes trust per cluster
+            r_shrunk = prior_c + w * (r_emp - prior_c)
         if reception_cap is not None and np.isfinite(reception_cap):
             # Cap each cluster's reception at the unconfounded exploration-anchored
             # upper bound: a distributed ring's common-mode lift of organic reception

@@ -121,8 +121,15 @@ class ChordConfig:
     # band, so this throttles it to the commons rate ε. 1.0 = off; ~0.05 = near-zero.
     authority_out_of_band_weight: float = 1.0
     n_clusters: int = 2  # default Partition adapter cluster count
-    # Retained for the legacy subtractive-LCB path and external references; the
-    # default shrinkage bound (above) does not use them.
+    # Legacy subtractive lower-confidence bound (§4.2): B_LCB = min_c[ r̂_c − β·σ/√(n_c+1) ],
+    # which penalizes *under-sampled* clusters directly instead of shrinking them toward the
+    # (grand-mean) prior. On real, negative-rich data (Community Notes / Polis) the EB-shrinkage
+    # form beat it — hence the default. But on a **one-signed network** (e.g. Bluesky likes with
+    # no dislikes) the grand mean is high, so shrinkage pulls an *unsampled* cluster UP to it and
+    # a partisan post looks bridged; the subtractive penalty instead pushes an unsampled cluster
+    # DOWN, recovering cross-cluster contrast from positive-only data. Off by default; pair with
+    # bridging_aggregator="min" for the classic form. β,σ below are its penalty scale.
+    bridging_subtractive_lcb: bool = False
     lcb_beta: float = 1.0
     lcb_sigma: float = 1.0
 

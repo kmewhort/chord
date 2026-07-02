@@ -64,6 +64,12 @@ class BlueskyConfig:
         d=16, n_clusters=2, mf_iters=20,
         # a real network is a firehose; keep the budget binding so §8 dilutes volume.
         budget_B0=8.0, budget_max=80.0,
+        # Bluesky is a ONE-SIGNED network (likes, no dislikes), so the default EB-shrinkage
+        # B_LCB goes flat — a silent cluster shrinks up to the high positive mean and a
+        # partisan post looks bridged (verified live: B_LCB std ≈ 0.01). Use the subtractive
+        # lower-confidence bound, which penalizes an under-sampled cluster instead, to recover
+        # cross-cluster contrast from likes alone (needs density — see README). §4.2.
+        bridging_subtractive_lcb=True, bridging_aggregator="min",
     ))
     default_knobs: UserKnobs = field(default_factory=lambda: UserKnobs(M=0.8))
 

@@ -141,9 +141,14 @@ tests and are documented in the whitepaper's own prose):
    0.9996). Opinion **clusters are deterministic** (`model/spectral.py`: per-column-
    centred canonical spectral split), not k-means on `x_u`. The MF stays only for
    `V(u,p)` personalization. The old `min_c[r̂ − βσ/√(n+1)]` penalized *under-sampled*
-   clusters and lost to `b_p`/naive-mean. Validated on Community Notes / Polis (App C.5).
-   Tests: `test_bridging.py`, `test_properties.py`. (Re-validation of the collusion
-   defense under the new clustering is in progress — see `VALIDATION_FINDINGS.md` F3.)
+   clusters and lost to `b_p`/naive-mean on negative-rich data — but is **retained as an
+   opt-in** (`config.bridging_subtractive_lcb`, default off) because on a **one-signed**
+   network (likes, no dislikes — e.g. Bluesky) the shrink-to-μ form goes flat and the
+   subtractive penalty is what recovers cross-cluster contrast. The `bluesky/` feed turns
+   it on by default; `tests/test_like_only.py` exercises the regime. Validated on Community
+   Notes / Polis (App C.5). Tests: `test_bridging.py`, `test_properties.py`,
+   `test_like_only.py`. (Re-validation of the collusion defense under the new clustering is
+   in progress — see `VALIDATION_FINDINGS.md` F3.)
 
 ## Conventions
 

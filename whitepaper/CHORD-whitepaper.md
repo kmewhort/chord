@@ -229,7 +229,14 @@ version was *beaten by both* the scalar $b_p$ and a naive mean of signed helpful
 with a rating-count $n_{cp}$ the $\min$-minus-penalty demotes notes *sampled* by fewer clusters
 (noise) rather than notes *divisive* across clusters (risk) — it subtracted noise, not risk.
 Replacing it with the exposure-weighted empirical-Bayes shrinkage and the nash aggregator
-reached $b_p$ parity on CN and tracked genuine multi-group support far better on Polis. Second,
+reached $b_p$ parity on CN and tracked genuine multi-group support far better on Polis. (The
+subtractive form is *retained as an opt-in*, `bridging_subtractive_lcb`, because on a
+**one-signed** network — likes with no dislikes, e.g. Bluesky — the mean of everything observed
+is high, so the shrinkage prior lifts a *silent* cluster back up and $B_{\mathrm{LCB}}$ goes
+flat; there the $\min$-minus-penalty's demotion of *under-sampled* clusters is exactly what
+recovers cross-cluster contrast from positive-only data. The CN failure and the Bluesky fix are
+the same mechanism seen from opposite signal regimes: subtracting on under-sampling hurts when
+dissent is *observable* and helps when it is *only ever silence*.) Second,
 the *reception itself* was moved from the bilinear reconstruction to the empirical cluster mean
 above (for the reproducibility reason just given): this both removes the order-dependence and
 *improves* faithfulness — on a class-balanced Community Notes sample the empirical

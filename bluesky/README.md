@@ -107,11 +107,26 @@ the feed's `at://…/app.bsky.feed.generator/<rkey>` URI in the app (share
    network. The code degrades gracefully across this line — no served exposures ⇒ `fit_window`
    still runs, just on flat, positive-only signal (near-uniform ranking) until serving begins.
 
-So the path is: **firehose-only cold start** (candidates fill, but `B_LCB` is flat — the feed is
-essentially recency/exploration) → **a handful of subscribers** (its served skeletons start
+**What the feed does about this by default.** Because Bluesky is one-signed, the feed's core
+config turns on the **subtractive lower-confidence bound** (`bridging_subtractive_lcb` +
+`bridging_aggregator="min"`, §4.2) instead of the default empirical-Bayes shrinkage. Rather than
+shrinking a *silent* cluster **up** to the high positive mean (which makes a partisan post look
+bridged), it penalizes an *under-sampled* cluster **down** — `B_LCB = min_c[ r̂_c − β·σ/√(n_c+1) ]`
+— so a post tested across clusters outscores one liked within a single cluster, recovering
+contrast from likes alone. Live, this widened the `B_LCB` spread ~10× (std **0.018 → 0.168**; the
+range picks up negatives for single-cluster posts). Two honest caveats: it needs **density** — a
+bridging post must actually have likers in more than one cluster and the clusters must be
+non-degenerate, so it discriminates *meaningfully* only with enough engaged, overlapping raters
+(mass/time, or a scoped community), not on an ultra-sparse cold snapshot; and it does **not**
+remove the need for real negatives (the robust, less-gameable signal) — it is the best obtainable
+from the positive-only firehose. Flip it off (`bridging_subtractive_lcb=False`) once the feed's
+own serving supplies exposed-no-reaction negatives.
+
+So the path is: **firehose-only cold start** (candidates fill; subtractive `B_LCB` gives *partial*
+bridging once dense, no de-confounding) → **a handful of subscribers** (its served skeletons start
 producing exposed-no-reaction negatives + the ε anchor) → **bridging + de-confounded steady
-state**. The corollary: seed *some* serving traffic early (even a few pinned subscribers, or a
-scripted ε-serving warm-up) — that, not raw firehose volume, is what turns bridging on.
+state**. The corollary: seed *some* serving traffic early (even a few pinned subscribers) — that,
+not raw firehose volume, is what turns the robust bridging on.
 
 ### Will a dev run drown in the firehose?
 
