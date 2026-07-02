@@ -10,6 +10,7 @@ extra: websockets).
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 from typing import Callable, Optional
@@ -18,6 +19,18 @@ from urllib.parse import urlencode
 from .config import BlueskyConfig
 from .mapping import event_to_post, event_to_reaction
 from .ranker import ChordFeed
+
+
+def keep_event(event: dict, sample_rate: float) -> bool:
+    """Deterministic firehose subsample, bucketed by the *actor* DID so a kept account's
+    posts and likes stay together (a coherent thinned graph, not orphaned events)."""
+    if sample_rate >= 1.0:
+        return True
+    if sample_rate <= 0.0:
+        return False
+    did = event.get("did") or ""
+    h = int.from_bytes(hashlib.blake2b(did.encode(), digest_size=8).digest(), "big")
+    return (h % 1_000_000) < sample_rate * 1_000_000
 
 
 def handle_event(feed: ChordFeed, event: dict, now: float) -> bool:
@@ -35,6 +48,7 @@ def handle_event(feed: ChordFeed, event: dict, now: float) -> bool:
 
 def subscribe_url(config: BlueskyConfig) -> str:
     params = [("wantedCollections", c) for c in config.wanted_collections]
+    params += [("wantedDids", d) for d in config.wanted_dids]     # server-side scoping
     return f"{config.jetstream_url}?{urlencode(params)}"
 
 
@@ -53,6 +67,8 @@ async def run_ingestion(feed: ChordFeed, config: Optional[BlueskyConfig] = None,
         try:
             async for raw in ws:
                 event = json.loads(raw)
+                if not keep_event(event, config.sample_rate):    # client-side subsample
+                    continue
                 now = clock()
                 handle_event(feed, event, now)
                 feed.maybe_fit(now)

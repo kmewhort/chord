@@ -40,6 +40,12 @@ class BlueskyConfig:
         "app.bsky.feed.repost",
     ])
 
+    # --- scoping (keep a dev run — or a topical feed — from ingesting the whole network) ---
+    # The global firehose is far too much to rank in one window; scope it. Any of:
+    wanted_dids: List[str] = field(default_factory=list)   # Jetstream: only these repos (≤10k)
+    sample_rate: float = 1.0                    # keep this fraction of the firehose (by actor DID)
+    max_posts: int = 20_000                     # hard cap on stored candidates (evict oldest)
+
     # --- windowing (§9.1 learning plane cadence) ---
     window_seconds: float = 900.0               # a learning window = 15 min of events
     candidate_horizon_seconds: float = 6 * 3600.0   # how far back a post stays a candidate

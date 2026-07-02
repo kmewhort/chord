@@ -32,10 +32,21 @@ class RollingStore:
     _served: List[Exposure] = field(default_factory=list)            # our skeletons this window
     _reacted: Set[Tuple[Id, Id]] = field(default_factory=set)        # (user, post) that reacted
     _served_pairs: Set[Tuple[Id, Id]] = field(default_factory=set)   # (user, post) we served
+    _trim_at: int = 0                                                # lazy cap check threshold
 
     # ---- ingestion (called by the Jetstream consumer) ----
     def add_post(self, post: Post) -> None:
         self.posts[post.id] = post
+        # hard memory bound between window rolls: once well over the cap, keep the newest.
+        if not self._trim_at:
+            self._trim_at = int(self.config.max_posts * 1.25) + 1
+        if len(self.posts) > self._trim_at:
+            self._trim_to_cap()
+
+    def _trim_to_cap(self) -> None:
+        keep = sorted(self.posts.values(), key=lambda p: p.created_at,
+                      reverse=True)[: self.config.max_posts]
+        self.posts = {p.id: p for p in keep}
 
     def add_reaction(self, r: Reaction) -> None:
         """An observed like/repost (approval channel). Kept even if the target post
@@ -89,3 +100,5 @@ class RollingStore:
         stale = [uri for uri, p in self.posts.items() if p.created_at < horizon]
         for uri in stale:
             del self.posts[uri]
+        if len(self.posts) > self.config.max_posts:
+            self._trim_to_cap()

@@ -77,6 +77,67 @@ Put the process behind your TLS terminator on `FEEDGEN_HOSTNAME`, and the feed
 appears in-app for anyone who opens its `at://…/app.bsky.feed.generator/chord` URI.
 `GET /health` reports windows fit / candidate count.
 
+## How it works in practice
+
+**Data collection and subscription are decoupled.** Ingestion reads the **Jetstream
+firehose** — a global, public, no-auth stream of *every* post/like/repost on the whole
+network. The instant `serve` connects it is collecting data, whether or not anyone has
+subscribed. Subscription only controls *who sees the output*: a user subscribes by opening
+the feed's `at://…/app.bsky.feed.generator/<rkey>` URI in the app (share
+`bsky.app/profile/<you>/feed/<rkey>`), and *their* refresh is what calls your
+`getFeedSkeleton`. So it runs and learns with **zero subscribers**.
+
+**The "does it need mass?" question has two layers:**
+
+1. *The bridging ranking works from day one.* The factorization, opinion clusters, `B_LCB`
+   (cross-cluster support), and λ are computed from firehose likes/reposts — the *whole
+   network's* reactions — so they are well-fed immediately. What this needs is not subscriber
+   count but a candidate set with real reaction volume **and genuine opinion diversity** (so
+   clusters mean something); any non-trivial topic slice has that.
+2. *The causal de-confounding needs your own serving traffic.* CHORD's identifiability (§6.2)
+   — the IPW correction, the ε-exploration anchor, and the exposed-no-reaction weak negative —
+   is powered by the exposures the feed logs from **its own** served skeletons. Firehose likes
+   are confounded (people liked what Bluesky's *main* algorithm showed them); CHORD can only
+   de-confound the exposure it controls, i.e. what it serves. With no subscribers this layer is
+   dormant and the feed runs *observationally* (bridging on a biased sample). As it serves
+   subscribers (including the random ε slice) and they react, those reactions match its logged
+   exposures with known π and the de-confounding progressively engages. The code degrades
+   gracefully across this line — no served exposures ⇒ `fit_window` still runs on firehose
+   reactions, just without propensity weights or the ε anchor.
+
+So the path is: **firehose-only cold start** (observational bridging, solo) → **a handful of
+subscribers** (its own ε-logging begins) → **de-confounded steady state**.
+
+### Will a dev run drown in the firehose?
+
+**Yes, if you ingest everything** — not from the websocket (that's cheap) but from the *store
+size and `fit_window` cost*: a 15-minute slice of the global firehose is hundreds of thousands
+of posts and millions of likes, and the numpy/scipy core is sized for a fediverse instance, not
+the whole network in one window. **Scope it.** Three levers (`BlueskyConfig`), use any:
+
+- `wanted_dids=[…]` — Jetstream filters *server-side* to ≤10k repos (scope to a community/topic);
+- `sample_rate=0.02` — keep a deterministic fraction of the firehose, bucketed by actor DID so a
+  kept account's posts and likes stay together (a coherent thinned graph, not orphaned events);
+- `max_posts` + a short `window_seconds` — hard-cap the store and keep windows small.
+
+A local dev run needs **no public host and no publishing** — just watch it rank:
+
+```python
+import asyncio, time
+from bluesky import ChordFeed, BlueskyConfig
+from bluesky.jetstream import run_ingestion
+
+cfg = BlueskyConfig(sample_rate=0.02, window_seconds=120, max_posts=5000)
+#   ...or scope to a community instead of sampling: BlueskyConfig(wanted_dids=[...])
+feed = ChordFeed(cfg)
+asyncio.run(run_ingestion(feed, cfg, max_events=50_000))     # ingest a bounded burst
+print(feed.serve("did:plc:you", limit=30, now=time.time()))  # inspect the ranked skeleton
+```
+
+Start heavily thinned (`sample_rate≈0.01–0.05`), confirm the loop keeps up (`/health`), then dial
+up. A production feed almost always uses `wanted_dids`/a candidate filter rather than the raw
+global stream anyway.
+
 ## Status — what is real vs. a slot
 
 **Real:** the full ingest→learn→serve loop, faithful known-π exposure logging with a
