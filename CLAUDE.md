@@ -187,8 +187,16 @@ tests and are documented in the whitepaper's own prose):
   found (and then fixed, see §5/§4.2 + Appendix C.5) two real weaknesses — the
   Sybil-ring harvest and the old subtractive `B_LCB`. `chord/eval/` remains the
   semi-synthetic MNAR harness only.
-- No serving/HTTP layer, no Mastodon/ATProto integration — CHORD is the
-  valuation-and-allocation core; retrieval and presentation stay upstream/downstream.
+- No serving/HTTP layer in the **core** (`chord/`) — CHORD is the valuation-and-
+  allocation core; retrieval and presentation stay upstream/downstream. The real
+  ATProto/Bluesky integration lives in the separate opt-in **`bluesky/`** package
+  *built on top of* the core (like `validate/`): `pip install -e '.[bluesky]'`,
+  `pytest bluesky/` (offline), `python -m bluesky {publish,serve}` to run it live.
+  It implements the ports (DID identity, Signal via Jetstream, Candidate) and serves
+  `app.bsky.feed.getFeedSkeleton`; a feed generator IS a logging policy, so it logs
+  its own served skeletons as known-π exposures with a floored ε anchor (the §6.2
+  data CHORD needs). The core is never touched. The merit/vouch channel (§10) is the
+  one genuine gap — a `VouchSource` slot, default none. See `bluesky/README.md`.
 - Rich port adapters (see Conventions).
 
 ## Working agreement (from the task setup)
