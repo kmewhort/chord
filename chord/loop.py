@@ -302,7 +302,16 @@ class Chord:
             pid: (identity_of.get(a, a) if identity_of else a)
             for pid, a in post_authors.items()
         }
-        self.budget.replenish(realized_strength, exposure_per_post, post_identity)
+        # #3 streaming credit: per-post Φ confidence = tested-evidence weight n_p/(n_p+n0),
+        # which rises as a slow-burn post accumulates reactions across windows.
+        confidence = None
+        if cfg.budget_streaming_credit:
+            n0 = cfg.bridging_shrinkage_n0
+            confidence = {}
+            for pid, rec in reception.items():
+                n_p = sum(n for (n, _m) in rec.values())
+                confidence[pid] = n_p / (n_p + n0)
+        self.budget.replenish(realized_strength, exposure_per_post, post_identity, confidence)
 
         # --- step 6: Thompson posteriors for auditioned posts
         self._update_exploration(bridging, exposures)

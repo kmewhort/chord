@@ -63,6 +63,25 @@ def test_4_share_based_still_allocates_by_relative_strength():
     assert L.budget("A") > L.budget("B")                 # more relative strength → more budget
 
 
+def test_3_streaming_credit_flows_as_evidence_arrives():
+    cfg = ChordConfig(budget_B0=2.0, budget_eta=1.0, budget_max=1e6,
+                      budget_streaming_credit=True)
+    L = AuthorBudgetLedger(cfg)
+    increments, prev = [], 0.0
+    for conf in (0.3, 0.6, 1.0):                          # posterior tightens over windows
+        L.replenish({"p": 0.6}, {"p": 10.0}, {"p": "A"}, {"p": conf})
+        increments.append(L._credited["p"] - prev)
+        prev = L._credited["p"]
+    # credit flows across windows (not one lump at saturation), rising as evidence accrues
+    assert all(i >= 0 for i in increments) and increments[-1] > increments[0]
+    # and totals exactly to the batch credit for the fully-confident post: Φ·1·E_cumulative
+    assert abs(L._credited["p"] - 0.6 * 1.0 * 30.0) < 1e-6
+    # a shallow-but-bursty post (never gains confidence) is not over-credited at a boundary
+    L2 = AuthorBudgetLedger(cfg)
+    L2.replenish({"q": 0.9}, {"q": 100.0}, {"q": "B"}, {"q": 0.05})   # huge burst, no evidence
+    assert L2._credited["q"] == 0.9 * 0.05 * 100.0        # credited only at its low confidence
+
+
 def test_2_replicator_gain_diagnostic():
     cfg = ChordConfig(budget_eta=0.5, budget_memory=0.2)
     L = AuthorBudgetLedger(cfg)

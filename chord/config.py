@@ -178,6 +178,10 @@ class ChordConfig:
     #    per-author η·ΣΦE (procyclical).
     budget_share_based: bool = False
     budget_aggregate_factor: float = 2.0
+    # #3 streaming credit: replenish incrementally as a post's Φ posterior tightens (a leaky
+    # bucket), rather than batching provisional Φ at window close — so slow-burn content is
+    # credited as evidence arrives and window-boundary gaming is removed. Off = batch credit.
+    budget_streaming_credit: bool = False
 
     # --- Exploration pool (§8) ---
     epsilon_min: float = 0.05  # floored system invariant (§9.3)

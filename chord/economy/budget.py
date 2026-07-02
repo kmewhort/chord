@@ -32,6 +32,10 @@ class AuthorBudgetLedger:
 
     config: ChordConfig
     budgets: Dict[Id, float] = field(default_factory=dict)
+    # #3 streaming-credit state: cumulative exposure and already-credited confident value
+    # per post, so credit flows incrementally as evidence arrives (a leaky bucket).
+    _cum_exposure: Dict[Id, float] = field(default_factory=dict)
+    _credited: Dict[Id, float] = field(default_factory=dict)
 
     def budget(self, identity_id: Id) -> float:
         """Current B(a); defaults to the base budget B_0 for new identities."""
@@ -42,6 +46,7 @@ class AuthorBudgetLedger:
         realized_strength: Mapping[Id, float],
         exposure: Mapping[Id, float],
         post_identity: Mapping[Id, Id],
+        confidence: Mapping[Id, float] = None,
     ) -> None:
         """Apply the window replenishment rule (§8) — a floored, capped **replicator**
         update: reach reproduces in proportion to earned cross-cluster strength.
@@ -53,16 +58,30 @@ class AuthorBudgetLedger:
         a share of a *fixed aggregate pool* (so total issuance is conserved system-wide, not
         procyclical): each identity gets ``surplus · earned(a)/Σearned``.
         """
-        earned: Dict[Id, float] = defaultdict(float)
-        for pid, ident in post_identity.items():
-            phi = realized_strength.get(pid, 0.0)
-            e = exposure.get(pid, 0.0)
-            # Only positive realized strength regenerates budget; a post that earned net
-            # negative reception does not *cost* prior budget (that would double-punish), it
-            # simply fails to replenish.
-            earned[ident] += max(0.0, phi) * e
-
         cfg = self.config
+        earned: Dict[Id, float] = defaultdict(float)
+        if cfg.budget_streaming_credit and confidence is not None:
+            # #3: incremental (leaky-bucket) credit. A post's *confident* earned value is
+            # max(0,Φ)·conf·E_cumulative, where conf∈[0,1] is how tight its Φ estimate is
+            # (rises as evidence arrives). Each window credits only the newly-confident
+            # delta, so credit flows at the rate evidence accrues — slow-burn long-form is
+            # credited as its posterior tightens, not lagged to saturation or gamed at a
+            # window boundary. Totals to the batch credit over the post's life.
+            for pid, ident in post_identity.items():
+                self._cum_exposure[pid] = self._cum_exposure.get(pid, 0.0) + exposure.get(pid, 0.0)
+                confident = max(0.0, realized_strength.get(pid, 0.0)) * \
+                    float(confidence.get(pid, 0.0)) * self._cum_exposure[pid]
+                inc = max(0.0, confident - self._credited.get(pid, 0.0))
+                self._credited[pid] = confident
+                earned[ident] += inc
+        else:
+            for pid, ident in post_identity.items():
+                phi = realized_strength.get(pid, 0.0)
+                e = exposure.get(pid, 0.0)
+                # Only positive realized strength regenerates budget; a net-divisive post
+                # (Φ<0) simply fails to replenish rather than draining the floor.
+                earned[ident] += max(0.0, phi) * e
+
         idents = set(self.budgets) | set(earned)
         n = max(len(idents), 1)
 
