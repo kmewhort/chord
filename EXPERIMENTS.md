@@ -205,6 +205,16 @@ is not free: several refinements interact with the very defenses they sit beside
 defaults keep them off; enabling any is a deliberate, per-deployment choice with its own
 re-validation. (Budget #3 streaming credit landed gated alongside #1/#2/#4; §8 documents all four.)
 
+**Safe-subset search (follow-up):** individually, five refinements (E2, E12, E3, E6, streaming)
+each pass the claim tests — but *no* combination composes cleanly. Even a 2-subset {E2, E12}
+fails, and E2 *alone* shifts collusion/frontier/bait/adversary: E2 flips the M-frontier (it makes
+pure bridging optimal — a benign shift), and E12 is not inert (a ring drives Gini drift, so it
+fires and tightens the controller). Conclusion: **there is no cleanly-safe subset to default** —
+the sim suite is calibrated to the exact all-off baseline and every dynamics-touching refinement
+moves it. All stay knobs; the full trade-off analysis is now whitepaper §13.11. E2 is the closest
+to a safe default (pure de-confounding improvement); E9 is the most goal-conflicting (approval-
+history prior raises extremity — points to a quality-history redesign).
+
 ## Suggested order
 1. **E9** (hierarchical prior) — highest leverage, closes the one gap where §8 does §4's
    job; deterministic; CN + sim today.

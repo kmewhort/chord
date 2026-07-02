@@ -488,7 +488,7 @@ time-dependence that the naive form gets wrong (each a gated refinement, off by 
   hobbyists. $\gamma>0$ carries earned standing across gaps.
 - **Bifurcation at $\gamma+\eta\bar\Phi=1$ (#2).** For a fully-spending author, earnings
   $\approx\bar\Phi\,B_t$, so the recursion is linear with gain $\gamma+\eta\bar\Phi$ and
-  fixed point $B^\*=B_0(1-\gamma)/(1-\gamma-\eta\bar\Phi)$ — graded below the critical
+  fixed point $B^*=B_0(1-\gamma)/(1-\gamma-\eta\bar\Phi)$ — graded below the critical
   strength, runaway to $B_{\max}$ above it. So $\eta$ is a **phase-transition parameter**,
   not a smooth gain; set it to keep the gain (a shipped diagnostic) comfortably below $1$.
 - **Streaming credit (#3, direction).** $\Phi(p)$ is not known at window close for
@@ -867,6 +867,40 @@ unprofitable) are preferred over evadable detectors. Adversarial-challenge audit
 suspicious bridged support is retained only as an anti-amateur measure; it does not defeat
 the §10 high-precision clique, whose sock-puppets already occupy the extreme coordinates a
 challenge would route to.
+
+### 13.11 Optional refinements and their composition trade-offs
+
+Beyond the shipped defaults, the reference implementation carries a set of **individually
+validated but optional** refinements (config knobs, default off), each answering one of the
+problems above. A deliberate re-validation pass tried to graduate them to defaults and found
+a result worth stating plainly: **they do not compose cleanly, and adding a defense is not
+free.** Each refinement, switched on, shifts the tuned closed-loop dynamics, and several
+interact — sometimes destructively — with the very defenses they sit beside. The headline
+guarantees (CHORD beats engagement on welfare; the effective ring is contained) survive, but
+specific sub-mechanism guarantees do not survive arbitrary combination. The trade-offs:
+
+| Refinement (knob) | What it buys | The trade-off it introduces |
+|---|---|---|
+| **Hierarchical prior** (E9, `hierarchical_prior`, §13#9) | $B_{\mathrm{LCB}}$ predicts-low on an *untested* one-sided firehose before the budget bites; +28\% delivered value in isolation | The prior is on **approval history**, so it also *props up* a broadly-approved but shallow **bait** and a distributed-**ring target**, blunting the depth defense and ring containment; worse, rewarding in-cluster approval consistency *raises author extremity above the engagement baseline* — it fights the "no extremists" goal. A **quality-history** prior (on the vouch channel, §13#11) rather than approval-history is the redesign this points to. |
+| **Residual-whiteness gate** (E4, `whiteness_gate`, §13#4) | Flags a post that divides along an unmodeled axis (Moran's I, permutation-tested) | Residuals correlate with the cluster structure, so as a *gate* it false-positives on most crowned posts in any clustered population. Excellent as a **diagnostic**, unsafe as a default gate. |
+| **ε-slice bias calibration** (E2, `bias_calibration`, §13.2) | De-confounds organic reception with a per-cluster bias model; beats IPW and **subsumes** the exploration-anchor cap | Redundant with (and superior to) the anchor cap — running both double-corrects. It also *shifts the M-frontier*: better de-confounding makes **pure bridging ($M{=}1$) deliver the most value**, moving the interior optimum — a benign shift, but one that invalidates the $M{\approx}0.7$-dominates result calibrated on the un-de-confounded system. |
+| **Amplification collar** (E3, `amplification_collar`, §13#3) | Throttles reach that outruns tested audience (staged rungs) | Interacts with the budget's own reach allocation; changes firehose/ring reach dynamics in combination. |
+| **Off-policy recycling verify** (E6, `recycling_offpolicy_verify`, §13#6) | Withdraws the λ-boost from a recycling farmer (ε-corroborated) | Changes λ, hence IPW, hence B_LCB — shifts tuned ring/welfare estimates in combination. |
+| **CUSUM controller** (E12, `controller_cusum`, §13#12) | An *active* drift alarm where the level ceiling is dormant | *Not inert*: a ring drives Gini drift, so it fires in adversarial scenarios and tightens the controller (§9.3 wiring), changing λ/reach exactly where the ring tests are calibrated. |
+| **Budget memory / share / streaming** (`budget_memory`/`budget_share_based`/`budget_streaming_credit`, §8) | Cadence tolerance (γ carry); system-wide conservation; leaky-bucket credit for slow-burn | Memory lets a *persistent firehose accumulate* budget, reversing the §8 dilution; share-based dilutes the welfare gain and (with memory) courts the $\eta\bar\Phi$ bifurcation; each changes the budget-to-reach dynamics the firehose test pins. |
+
+Two structural lessons fall out. First, **several refinements target the same failure mode
+from different angles and therefore overlap or conflict** — E2 vs. the anchor cap (both
+de-confound), E9 vs. the depth defense (approval vs. quality), budget memory vs. the firehose
+dilution (cadence tolerance vs. flood suppression). The design space is *coupled*, not
+modular. Second, this is why they ship as **knobs, not defaults**: the tuned guarantees hold
+for the validated configuration, and enabling any refinement is a deliberate, per-deployment
+choice that requires its own re-validation — which is the honest posture for a mechanism whose
+interactions with the rest of the system are real. The one refinement closest to a safe default
+is E2 (a strict de-confounding improvement whose only cost is the benign M-frontier shift); the
+one most in tension with the design's goals is E9 (until its prior is moved from approval to
+quality). Both conclusions came from the simulator's counterfactual, ground-truthed loop —
+which is exactly the tool Appendix C.4 exists to provide.
 
 ## 14. Relationship to prior work
 
