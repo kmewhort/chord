@@ -167,6 +167,17 @@ class ChordConfig:
     budget_B0: float = 10.0  # base per-window budget
     budget_eta: float = 1.0  # strength-replenishment rate
     budget_max: float = 100.0  # ceiling to keep budgets bounded
+    # Budget-recursion refinements (Fable review, §8).
+    # #1 memory γ: carry (B_t − B_0) across windows so a quiet cadence isn't reset to the
+    #    floor ("posted nothing" ≠ "earned nothing"); the author-side anti-ossification
+    #    half-life mirroring rater recycling. 0 = memoryless (original behavior).
+    budget_memory: float = 0.0
+    # #4 share-based issuance: a fixed aggregate pool per window (budget_aggregate_factor ·
+    #    n · B_0) distributed by *relative* realized strength, so total issuance is not
+    #    procyclical with aggregate engagement — genuine system-wide conservation. Off =
+    #    per-author η·ΣΦE (procyclical).
+    budget_share_based: bool = False
+    budget_aggregate_factor: float = 2.0
 
     # --- Exploration pool (§8) ---
     epsilon_min: float = 0.05  # floored system invariant (§9.3)
